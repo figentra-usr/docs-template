@@ -1,7 +1,7 @@
 ---
-title: "package.json Standards for Figentra Packages"
+title: "package.json Standards for Figentra Monorepo Packages"
 sidebarTitle: "package.json"
-description: "A complete reference for required and recommended package.json fields, scripts, exports configuration, and versioning rules for Figentra workspace packages."
+description: "A complete guide to required package.json fields, scripts, exports configuration, and versioning rules for Figentra monorepo packages."
 ---
 
 In a monorepo, `package.json` is more than a dependency manifest — it is the contract between your package and every consumer, whether that consumer is another internal package or an external developer. Standardising the fields, scripts, and export map across every Figentra package means that build tooling, release automation, and IDE tooling can make reliable assumptions without per-package configuration.
@@ -89,7 +89,7 @@ Using `exports` achieves three things:
     All `@figentra/*` packages follow [semver](https://semver.org). A breaking change in a public API requires a major version bump. New backward-compatible features require a minor bump. Bug fixes require a patch bump.
   </Step>
   <Step title="Version packages together">
-    All packages in the `@figentra/*` scope are released in lockstep using the monorepo release tooling. Do not manually bump versions — let the release pipeline compute and apply them from your commit messages.
+    All packages in the `@figentra/*` scope are versioned in lockstep. Do not manually bump version numbers — version increments are computed automatically from your commit messages using conventional commits.
   </Step>
   <Step title="Start at 0.1.0">
     New packages start at `0.1.0`. A `0.x` version signals that the public API may still change without a major version bump — useful during the initial development period before a package is considered stable.

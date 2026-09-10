@@ -1,5 +1,5 @@
 ---
-title: "Security Incident Runbook and Hardening Guide"
+title: "Security Best Practices and Incident Response Guide"
 sidebarTitle: "Security"
 description: "Learn how to respond to security incidents and apply hardening best practices — dependency auditing, secrets management, and more — in Figentra projects."
 ---
@@ -9,16 +9,16 @@ Security in a Figentra monorepo spans dependency hygiene, secret management, typ
 ## Security Best Practices
 
 <CardGroup cols={2}>
-  <Card title="Dependency Auditing" icon="magnifying-glass">
+  <Card title="Dependency Auditing" icon="magnifying-glass" href="/standards/package-json">
     Run `pnpm audit` regularly — ideally on every pull request — to surface known CVEs in your dependency tree before they reach production.
   </Card>
-  <Card title="Secret Management" icon="key">
+  <Card title="Secret Management" icon="key" href="/packages/config">
     Never commit secrets to source control. Store all credentials and API keys in environment variables, and use a dedicated secrets manager in production environments.
   </Card>
-  <Card title="Type Safety" icon="shield-check">
+  <Card title="Type Safety" icon="shield-check" href="/packages/contracts">
     Enable TypeScript strict mode across all packages. Strong typing eliminates entire classes of injection vulnerabilities and reduces the surface area for runtime surprises.
   </Card>
-  <Card title="Dependency Pinning" icon="lock">
+  <Card title="Dependency Pinning" icon="lock" href="/standards/package-json">
     Use exact version specifiers (no `^` or `~`) in production packages. Pinned versions ensure that your dependency tree is deterministic and cannot silently introduce a compromised release.
   </Card>
 </CardGroup>

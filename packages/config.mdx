@@ -1,5 +1,5 @@
 ---
-title: "@figentra/config: Environment Variable Validation"
+title: "@figentra/config: Typed and Validated Environment Vars"
 sidebarTitle: "Config"
 description: "Use @figentra/config to parse and validate environment variables with full TypeScript type safety at startup, before your server ever accepts a request."
 ---
@@ -72,16 +72,16 @@ const db = connectDatabase(config.DATABASE_URL);
 ## Field Types
 
 <CardGroup cols={2}>
-  <Card title="string(options)" icon="text">
+  <Card title="string(options)" icon="text" href="/packages/config">
     Accepts string values. Supports an optional `default`, an `enum` array to restrict allowed values, and `required: true` to make the variable mandatory.
   </Card>
-  <Card title="number(options)" icon="hash">
+  <Card title="number(options)" icon="hash" href="/packages/config">
     Coerces the string from `process.env` to a JavaScript `number`. Supports optional `min` and `max` bounds, a `default`, and `required: true`.
   </Card>
-  <Card title="boolean(options)" icon="toggle-on">
+  <Card title="boolean(options)" icon="toggle-on" href="/packages/config">
     Converts the strings `"true"` and `"false"` to their JavaScript boolean equivalents. Any other string value fails validation. Supports a `default`.
   </Card>
-  <Card title="url(options)" icon="link">
+  <Card title="url(options)" icon="link" href="/packages/config">
     Validates that the value is a well-formed URL using the WHATWG URL parser. Supports a `default` and `required: true`.
   </Card>
 </CardGroup>

@@ -1,7 +1,7 @@
 ---
 title: "@figentra/container: Dependency Injection Container"
 sidebarTitle: "Container"
-description: "Register and resolve typed dependencies with @figentra/container's lightweight DI container — supports singleton and transient scopes with full TypeScript inference."
+description: "Register and resolve typed dependencies with @figentra/container — a lightweight DI container supporting singleton and transient scopes."
 ---
 
 A dependency injection container centralises the wiring of your application. Instead of constructing services and passing them down through every function call, you register each service once and let the container resolve the full dependency graph on demand. The result is code that is easier to test (swap a real database for a mock by changing one registration), easier to reason about (all wiring lives in one place), and naturally decoupled (services depend on abstractions, not concrete classes). `@figentra/container` gives you a lightweight, fully-typed DI container purpose-built for Figentra monorepos.
@@ -200,7 +200,7 @@ class UserService {
     const cached = await this.cache.get(`user:${id}`);
     if (cached) return cached;
 
-    const user = await this.db.query(`SELECT * FROM users WHERE id = '${id}'`);
+    const user = await this.db.query('SELECT * FROM users WHERE id = $1', [id]);
     await this.cache.set(`user:${id}`, user);
     return user;
   }

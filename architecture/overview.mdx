@@ -9,16 +9,16 @@ Figentra is built around a monorepo-first philosophy that treats your entire pla
 ## Core Principles
 
 <CardGroup cols={2}>
-  <Card title="Single Source of Truth" icon="database">
+  <Card title="Single Source of Truth" icon="database" href="/architecture/monorepo-structure">
     All packages, applications, and tooling configurations live in one repository. You make changes once, run one CI pipeline, and ship consistent versions across every consumer.
   </Card>
-  <Card title="Typed Contracts First" icon="file-code">
+  <Card title="Typed Contracts First" icon="file-code" href="/packages/contracts">
     Shared interfaces and data shapes are defined in `@figentra/contracts` before any implementation is written. Types become the API boundary between packages, eliminating runtime surprises.
   </Card>
-  <Card title="Layered Package Design" icon="layer-group">
+  <Card title="Layered Package Design" icon="layer-group" href="/packages/overview">
     Packages are organized in dependency layers — utilities and contracts at the base, services and health infrastructure above. Higher layers depend on lower ones, never the reverse.
   </Card>
-  <Card title="Operational Readiness" icon="heart-pulse">
+  <Card title="Operational Readiness" icon="heart-pulse" href="/packages/health">
     Health checks, structured error handling, and runbook hooks are built into the framework from the start. You don't bolt observability on later — it's part of the package layer contract.
   </Card>
 </CardGroup>

@@ -4,7 +4,7 @@ sidebarTitle: "Testing"
 description: "Learn the test strategy, naming conventions, Vitest configuration, and coverage requirements used across all Figentra packages and applications."
 ---
 
-Figentra follows a test pyramid strategy: a broad base of fast unit tests, a mid-layer of integration tests that verify service boundaries, and a thin layer of end-to-end tests that validate complete user flows. This balance keeps the suite fast during development while giving you confidence that the system works as a whole. Every package you ship must include tests; coverage gates enforce this automatically in CI.
+Figentra follows a test pyramid strategy: a broad base of fast unit tests, a mid-layer of integration tests that verify service boundaries, and a thin layer of end-to-end tests that validate complete user flows. This balance keeps the suite fast during development while giving you confidence that the system works as a whole. Every package you ship must include tests; coverage thresholds are verified automatically on each build.
 
 ## Test Types
 
@@ -71,7 +71,7 @@ Follow the **Arrange / Act / Assert** pattern inside every `it` block. Keep each
 
 <Steps>
   <Step title="80%+ line coverage on all packages">
-    Every published package must reach at least 80% line coverage. The CI pipeline enforces this threshold and blocks merges that fall below it.
+    Every published package must reach at least 80% line coverage. The build will fail if any package falls below this threshold, so check your coverage report before publishing.
   </Step>
   <Step title="100% coverage on critical paths">
     Error handling code, authentication logic, and data validation must have 100% line and branch coverage. Mark these files explicitly in your `vitest.config.ts` using the `include` option under `coverage`.

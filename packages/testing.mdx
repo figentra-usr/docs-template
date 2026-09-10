@@ -1,5 +1,5 @@
 ---
-title: "@figentra/testing: Test Utilities and Helpers"
+title: "@figentra/testing: Unit and Integration Test Helpers"
 sidebarTitle: "Testing"
 description: "Simplify unit and integration tests with @figentra/testing's mock container, logger stub, fixture factory, and async polling helpers — built for Vitest."
 ---
@@ -37,22 +37,22 @@ yarn add --dev @figentra/testing
 ## What's Included
 
 <CardGroup cols={2}>
-  <Card title="createMockContainer" icon="box">
+  <Card title="createMockContainer" icon="box" href="/packages/testing#mock-container">
     Creates a pre-wired `Container` instance populated with the mock services
     you supply. Ideal for unit-testing services that accept a container as a
     dependency.
   </Card>
-  <Card title="mockLogger" icon="file-lines">
+  <Card title="mockLogger" icon="file-lines" href="/packages/testing#mock-logger">
     A no-op logger that satisfies the `Logger` interface while silently
     recording every call. Inspect `.calls` in your assertions without polluting
     test output.
   </Card>
-  <Card title="createTestFixture&lt;T&gt;" icon="flask">
+  <Card title="createTestFixture&lt;T&gt;" icon="flask" href="/packages/testing#test-fixture">
     A strongly-typed factory for test data. Define a default shape once, then
     call `.build(overrides)` in each test to produce a variant with only the
     fields that matter.
   </Card>
-  <Card title="waitForCondition" icon="clock">
+  <Card title="waitForCondition" icon="clock" href="/packages/testing#waitforcondition">
     An async polling helper that repeatedly evaluates a predicate until it
     returns `true` or a configurable timeout elapses. Keeps integration tests
     free of arbitrary `setTimeout` calls.

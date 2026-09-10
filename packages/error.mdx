@@ -1,7 +1,7 @@
 ---
 title: "@figentra/error: Typed Error Classes for TypeScript"
 sidebarTitle: "Error"
-description: "Throw, catch, and handle typed errors consistently across your Figentra app using @figentra/error's typed error classes, status codes, and narrowing helpers."
+description: "Throw and catch typed errors consistently across your Figentra app with typed error classes, HTTP status codes, and instanceof narrowing helpers."
 ---
 
 Untyped errors are one of the most common sources of bugs in TypeScript applications. When every layer of your stack throws plain `Error` objects with ad-hoc properties, catch blocks have no reliable structure to work with — you end up guessing field names or silencing errors entirely. `@figentra/error` solves this by providing a hierarchy of typed error classes that carry a machine-readable `code`, an HTTP `statusCode`, and optional structured `details`. Every class in the hierarchy extends the native `Error`, so existing tooling — stack traces, `instanceof` checks, serialisation libraries — all work without modification.

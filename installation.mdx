@@ -1,7 +1,7 @@
 ---
 title: "Installing Figentra Packages in Your Monorepo"
 sidebarTitle: "Installation"
-description: "Install and configure @figentra/* packages in a TypeScript monorepo with pnpm workspaces, strict TypeScript settings, and path aliases."
+description: "Install and configure @figentra/* packages in a TypeScript monorepo with pnpm workspaces, strict TypeScript settings, and shared base configuration."
 ---
 
 All Figentra packages are published under the `@figentra` scope on the npm registry. They are designed to be installed together inside a monorepo workspace — each package is independently versioned but built to work as a cohesive suite. This guide covers system requirements, workspace configuration, installing the core packages, and verifying that everything compiles correctly.
@@ -113,14 +113,7 @@ Create `tsconfig.base.json` at the workspace root:
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "dist",
-    "baseUrl": ".",
-    "paths": {
-      "@figentra/contracts": ["./node_modules/@figentra/contracts/src/index.ts"],
-      "@figentra/error": ["./node_modules/@figentra/error/src/index.ts"],
-      "@figentra/health": ["./node_modules/@figentra/health/src/index.ts"],
-      "@figentra/container": ["./node_modules/@figentra/container/src/index.ts"],
-      "@figentra/testing": ["./node_modules/@figentra/testing/src/index.ts"]
-    }
+    "baseUrl": "."
   },
   "exclude": ["node_modules", "dist", "coverage"]
 }

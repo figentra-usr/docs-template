@@ -1,5 +1,5 @@
 ---
-title: "Folder Structure Standards for Packages and Apps"
+title: "Figentra Folder Structure: Packages and Applications"
 sidebarTitle: "Folder Structure"
 description: "Understand the recommended directory layout for Figentra packages and application services, including src/, tests/, and barrel exports."
 ---
@@ -64,7 +64,7 @@ Mirror the `src/` subdirectory structure inside `tests/` so the test for any giv
     Consumers of your package import from the package name, which resolves to `src/index.ts`. Only export symbols that are part of the intentional public API; keep internal modules unexported.
   </Step>
   <Step title="No circular dependencies between packages">
-    Packages must form a directed acyclic graph. Use a tool such as `madge` or the `@figentra/lint` rules to detect and block circular imports in CI.
+    Packages must form a directed acyclic graph. Use a tool such as `madge` to detect and prevent circular imports across the workspace.
   </Step>
 </Steps>
 

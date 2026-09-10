@@ -1,5 +1,5 @@
 ---
-title: "Incident Response Runbook for Production Issues"
+title: "Incident Response Runbook: Production Issue Handling"
 sidebarTitle: "Incident Response"
 description: "Learn how to detect, classify, escalate, and resolve production incidents in Figentra-based systems, including post-mortem guidance."
 ---
@@ -90,7 +90,7 @@ What fixed it?
 ```
 
 <Accordion title="Tips for writing effective post-mortems">
-  - **Be specific about the timeline.** Vague entries like "engineers investigated" are less useful than "14:32 — @engineer queried the database and found 10k rows locked."
+  - **Be specific about the timeline.** Vague entries like "engineers investigated" are less useful than "14:32 — on-call engineer queried the database and found 10k rows locked."
   - **State the root cause as a system property**, not a human mistake. "The deployment pipeline did not run integration tests against the staging database" is more actionable than "an engineer forgot to test."
   - **Make action items SMART** — Specific, Measurable, Assignable, Relevant, and Time-bound. Every action item should have a named owner and a due date.
   - **Share post-mortems broadly.** Learning from incidents should be a company-wide activity, not siloed to the on-call team.

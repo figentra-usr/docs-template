@@ -103,9 +103,9 @@ The following ADRs define the foundation of every Figentra project. Read them be
 
   **Context:** When shared interfaces are defined inline within individual services, they diverge over time. Two services that should agree on the shape of a `User` object end up with subtly different types, and only fail at runtime when they communicate.
 
-  **Decision:** All shared interfaces, enums, and data transfer object types live in a single `@your-org/contracts` package. No service defines a type that another service also consumes — both import from contracts instead.
+  **Decision:** All shared interfaces, enums, and data transfer object types live in a single `@figentra/contracts` package. No service defines a type that another service also consumes — both import from contracts instead.
 
-  **Consequences:** There is a single authoritative definition for every shared data shape. Changing a contract is a deliberate, visible action that immediately surfaces type errors in every consumer. The trade-off is that `@your-org/contracts` becomes a high-traffic package; keep it free of runtime logic to prevent accidental coupling of behaviour.
+  **Consequences:** There is a single authoritative definition for every shared data shape. Changing a contract is a deliberate, visible action that immediately surfaces type errors in every consumer. The trade-off is that `@figentra/contracts` becomes a high-traffic package; keep it free of runtime logic to prevent accidental coupling of behaviour.
 </Accordion>
 
 ## Creating a New ADR
@@ -117,16 +117,16 @@ Follow these steps whenever a significant decision needs to be recorded — whet
     Create a new file in `docs/adr/` named `NNNN-short-title.md`, where `NNNN` is the next sequential number. Copy the ADR template from the section above into the file.
   </Step>
   <Step title="Fill in the context">
-    Write the **Context** section first. Describe the problem, constraint, or opportunity that is forcing a decision. Include any relevant constraints — performance targets, team size, existing dependencies — that a reader five years from now would not otherwise know.
+    Write the **Context** section first. Describe the problem, constraint, or opportunity that is forcing a decision. Include any relevant constraints — performance targets, existing dependencies, or non-functional requirements — that a reader five years from now would not otherwise know.
   </Step>
   <Step title="State the decision and consequences">
     Write the **Decision** section as a clear, active-voice statement of what you are doing. Then write the **Consequences** section honestly — include both the benefits and the trade-offs. Set the status to `Proposed`.
   </Step>
-  <Step title="Propose in a pull request">
-    Open a PR that contains only the new ADR file. Link to any relevant issues, RFC threads, or prior discussions in the PR description. Request review from maintainers and affected team members.
+  <Step title="Propose and review the ADR">
+    Open a pull request that contains only the new ADR file. Link to any relevant issues or prior discussion threads in the PR description so reviewers have full context.
   </Step>
   <Step title="Update the status after the decision">
-    Once the team reaches consensus, update the **Status** field to `Accepted` (or `Deprecated` if you are retiring an existing decision) and merge the PR. If this ADR supersedes an older one, add a `Superseded by ADR-NNNN` note to the older record.
+    Once consensus is reached, update the **Status** field to `Accepted` (or `Deprecated` if you are retiring an existing decision) and merge the PR. If this ADR supersedes an older one, add a `Superseded by ADR-NNNN` note to the older record.
   </Step>
 </Steps>
 

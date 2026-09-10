@@ -120,22 +120,22 @@ Errors are collected for all fields before returning, so a single call to `valid
 ## Field Builders
 
 <CardGroup cols={2}>
-  <Card title="string(options)" icon="text">
+  <Card title="string(options)" icon="text" href="/packages/validation">
     Validates string values. Supports `minLength`, `maxLength`, `pattern` (regex), and `optional`.
   </Card>
-  <Card title="number(options)" icon="hash">
+  <Card title="number(options)" icon="hash" href="/packages/validation">
     Validates numeric values. Supports `min`, `max`, `integer` (whole numbers only), and `optional`.
   </Card>
-  <Card title="email()" icon="envelope">
+  <Card title="email()" icon="envelope" href="/packages/validation">
     Validates that the value is a well-formed email address. Accepts no additional options.
   </Card>
-  <Card title="boolean()" icon="toggle-on">
+  <Card title="boolean()" icon="toggle-on" href="/packages/validation">
     Validates strict boolean `true` / `false` values. Use `@figentra/config`'s `boolean` field for environment variable coercion.
   </Card>
-  <Card title="url(options)" icon="link">
+  <Card title="url(options)" icon="link" href="/packages/validation">
     Validates that the value is a well-formed URL. Supports `protocols` to restrict allowed URL schemes and `optional`.
   </Card>
-  <Card title="array(itemSchema, options)" icon="list">
+  <Card title="array(itemSchema, options)" icon="list" href="/packages/validation">
     Validates an array of items, where each item is validated against `itemSchema`. Supports `minLength` and `maxLength`.
   </Card>
 </CardGroup>
