@@ -1,0 +1,85 @@
+---
+title: "Monorepo Folder Structure and Workspace Layout"
+sidebarTitle: "Monorepo Structure"
+description: "Learn the recommended directory layout and workspace conventions for a Figentra project, from the root manifest down to individual package internals."
+---
+
+A well-organised directory layout makes the difference between a monorepo that scales and one that becomes a maze of undiscoverable code. Figentra prescribes a three-tier workspace layout — `apps/`, `packages/`, and `tooling/` — that separates deployable services from shared libraries and build configuration. Following this convention means every contributor immediately knows where to look for any piece of code, and Turborepo's task graph can optimise builds without custom configuration.
+
+## Workspace Root
+
+Your repository root holds workspace-level manifests and orchestration config. Everything else lives under one of the three top-level directories.
+
+```text
+my-app/
+├── apps/
+│   ├── api/
+│   └── web/
+├── packages/
+│   ├── contracts/
+│   ├── utils/
+│   └── ui/
+├── tooling/
+│   ├── typescript/
+│   └── eslint/
+├── pnpm-workspace.yaml
+├── turbo.json
+└── package.json
+```
+
+### apps/
+
+The `apps/` directory contains every deployable unit — HTTP APIs, background workers, Next.js frontends, CLI tools, and so on. Each subdirectory is a self-contained application that consumes packages from `packages/` but never imports from another app. Apps are the only workspace members that produce deployment artefacts.
+
+### packages/
+
+Shared libraries live in `packages/`. Your `@your-org/*` scoped packages — including any Figentra packages you extend or re-export — all belong here. A package in this directory should expose a clean public API through its `src/index.ts` entry point and have no knowledge of which app consumes it.
+
+### tooling/
+
+Shared build and lint configurations live in `tooling/`. Rather than duplicating `tsconfig.json` or ESLint flat-config files across every package, you define them once here and extend them by reference. This directory is never published to a registry — it exists solely to keep configuration consistent across the workspace.
+
+## Individual Package Structure
+
+Every package under `packages/` follows the same internal layout. Consistent structure means contributors can navigate any package without reading its README first.
+
+```text
+packages/my-package/
+├── src/
+│   ├── index.ts
+│   └── types.ts
+├── package.json
+├── tsconfig.json
+└── vitest.config.ts
+```
+
+| File / Directory | Purpose |
+|---|---|
+| `src/index.ts` | Public entry point — only export what consumers need |
+| `src/types.ts` | Internal and exported TypeScript types for this package |
+| `package.json` | Package manifest with `exports`, `scripts`, and workspace dependencies |
+| `tsconfig.json` | Extends `tooling/typescript`; sets `rootDir` and `outDir` |
+| `vitest.config.ts` | Extends the shared Vitest preset; adds package-specific coverage thresholds |
+
+<Note>
+  Keep `src/index.ts` as the single barrel export. Avoid deep-import paths like `@your-org/utils/internal/helper` — if consumers need it, export it explicitly from `index.ts` or reconsider whether it should be a separate package.
+</Note>
+
+## Package Naming
+
+Consistent naming prevents the ambiguity that grows as a workspace expands. Follow these conventions for every package you create:
+
+- **Scope prefix** — use `@your-org/` for all internal packages (e.g. `@acme/contracts`). This distinguishes workspace packages from third-party dependencies at a glance.
+- **Kebab-case names** — use lowercase letters and hyphens only (e.g. `@acme/error-handler`, not `@acme/errorHandler`).
+- **Clear purpose in the name** — the package name should tell a new engineer what the package does without opening its source. Avoid generic names like `@acme/utils` in favour of `@acme/date-utils` or `@acme/string-utils`.
+
+<Tip>
+  Keep each package focused on a single responsibility. If you find yourself adding unrelated exports to an existing package because it's convenient, that's a signal to create a new package instead. Small, focused packages are easier to version, test, and replace.
+</Tip>
+
+## Next Steps
+
+Now that you understand the workspace layout, explore the standards and decisions that govern what goes inside each file:
+
+- [File Naming Standards](/standards/file-naming) — conventions for source files, test files, and configuration
+- [Packages Overview](/packages/overview) — a catalogue of every first-party `@figentra/*` package and its purpose

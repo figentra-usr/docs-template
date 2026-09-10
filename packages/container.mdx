@@ -1,0 +1,246 @@
+---
+title: "@figentra/container: Dependency Injection Container"
+sidebarTitle: "Container"
+description: "Register and resolve typed dependencies with @figentra/container's lightweight DI container — supports singleton and transient scopes with full TypeScript inference."
+---
+
+A dependency injection container centralises the wiring of your application. Instead of constructing services and passing them down through every function call, you register each service once and let the container resolve the full dependency graph on demand. The result is code that is easier to test (swap a real database for a mock by changing one registration), easier to reason about (all wiring lives in one place), and naturally decoupled (services depend on abstractions, not concrete classes). `@figentra/container` gives you a lightweight, fully-typed DI container purpose-built for Figentra monorepos.
+
+## Installation
+
+<CodeGroup>
+
+```bash npm
+npm install @figentra/container
+```
+
+```bash pnpm
+pnpm add @figentra/container
+```
+
+```bash yarn
+yarn add @figentra/container
+```
+
+</CodeGroup>
+
+## Core Concepts
+
+### Registration
+
+Registration is the act of binding a **token** — a string or symbol that identifies a dependency — to a **factory function** that produces an instance of it. The factory receives the container itself, so it can resolve its own dependencies.
+
+```typescript
+container.register('logger', () => new ConsoleLogger());
+```
+
+### Resolution
+
+Resolution is the act of asking the container for the instance behind a token. The container calls the factory (honouring the configured scope) and returns the result, typed as the generic parameter you provide.
+
+```typescript
+const logger = container.resolve<Logger>('logger');
+```
+
+### Scopes
+
+The container supports two lifetimes:
+
+- **Singleton** — the factory runs once; every call to `resolve` returns the same instance. Use this for stateful services like database connections or caches.
+- **Transient** — the factory runs on every `resolve` call, producing a fresh instance each time. Use this for stateless utilities or request-scoped objects.
+
+## Quick Start
+
+<Steps>
+  <Step title="Create a container instance">
+    Instantiate a single `Container` at your application root. In a monorepo, this is usually your app's entry point (`src/main.ts`).
+
+    ```typescript
+    import { Container } from '@figentra/container';
+
+    const container = new Container();
+    ```
+  </Step>
+
+  <Step title="Register services">
+    Register all your services before the application starts accepting requests. Factories receive the container so they can resolve sub-dependencies.
+
+    ```typescript
+    import { DatabaseService } from './services/DatabaseService';
+    import { CacheService } from './services/CacheService';
+    import { UserService } from './services/UserService';
+
+    container.registerSingleton('database', () => new DatabaseService(process.env.DATABASE_URL!));
+    container.registerSingleton('cache', () => new CacheService(process.env.REDIS_URL!));
+
+    container.register('userService', (c) =>
+      new UserService(
+        c.resolve<DatabaseService>('database'),
+        c.resolve<CacheService>('cache'),
+      ),
+    );
+    ```
+  </Step>
+
+  <Step title="Resolve services at startup">
+    Resolve the top-level service that roots the rest of your dependency graph. All transitive dependencies are resolved automatically.
+
+    ```typescript
+    const userService = container.resolve<UserService>('userService');
+
+    // Pass resolved services into your HTTP layer
+    app.get('/users/:id', async (req, res) => {
+      const user = await userService.findById(req.params.id);
+      res.json(user);
+    });
+    ```
+  </Step>
+</Steps>
+
+## API Reference
+
+### `new Container()`
+
+Creates a new, empty container. The container has no pre-registered services; you build it from scratch.
+
+```typescript
+import { Container } from '@figentra/container';
+
+const container = new Container();
+```
+
+---
+
+### `container.register(token, factory, options?)`
+
+Registers a service with an explicit scope option. Defaults to **transient** scope if `options` is omitted.
+
+<ParamField path="token" type="string | symbol" required>
+  The unique identifier for this service. Use a string for simplicity or a
+  Symbol for guaranteed uniqueness across packages (see the tip below).
+</ParamField>
+
+<ParamField path="factory" type="(container: Container) => T" required>
+  A function that constructs and returns the service instance. The container
+  passes itself as the first argument so you can resolve sub-dependencies inline.
+</ParamField>
+
+<ParamField path="options" type="{ scope: 'singleton' | 'transient' }">
+  Controls the lifetime of the registered service. Defaults to
+  `{ scope: 'transient' }`.
+</ParamField>
+
+```typescript
+container.register(
+  'emailService',
+  (c) => new EmailService(c.resolve<Logger>('logger')),
+  { scope: 'transient' },
+);
+```
+
+---
+
+### `container.resolve<T>(token)`
+
+Retrieves the service registered under `token`, typed as `T`. Throws a `ContainerError` if no service is registered for the given token.
+
+<ParamField path="token" type="string | symbol" required>
+  The token used during registration.
+</ParamField>
+
+```typescript
+const emailService = container.resolve<EmailService>('emailService');
+```
+
+---
+
+### `container.registerSingleton(token, factory)`
+
+Shorthand for `container.register(token, factory, { scope: 'singleton' })`. The factory runs exactly once; subsequent calls to `resolve` return the cached instance.
+
+<ParamField path="token" type="string | symbol" required>
+  The unique identifier for this service.
+</ParamField>
+
+<ParamField path="factory" type="(container: Container) => T" required>
+  A function that constructs the singleton instance.
+</ParamField>
+
+```typescript
+container.registerSingleton('config', () => loadConfig());
+```
+
+## Full Example
+
+The following shows a complete application bootstrap: a database service, a cache service, and a user service that depends on both — all wired through the container.
+
+```typescript
+import { Container } from '@figentra/container';
+
+// --- Service definitions ---
+
+class DatabaseService {
+  constructor(private readonly url: string) {}
+  async query(sql: string) { /* ... */ }
+}
+
+class CacheService {
+  constructor(private readonly url: string) {}
+  async get(key: string) { /* ... */ }
+  async set(key: string, value: unknown) { /* ... */ }
+}
+
+class UserService {
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly cache: CacheService,
+  ) {}
+
+  async findById(id: string) {
+    const cached = await this.cache.get(`user:${id}`);
+    if (cached) return cached;
+
+    const user = await this.db.query(`SELECT * FROM users WHERE id = '${id}'`);
+    await this.cache.set(`user:${id}`, user);
+    return user;
+  }
+}
+
+// --- Container bootstrap ---
+
+const container = new Container();
+
+container.registerSingleton('database', () => new DatabaseService(process.env.DATABASE_URL!));
+container.registerSingleton('cache', () => new CacheService(process.env.REDIS_URL!));
+
+container.register('userService', (c) =>
+  new UserService(
+    c.resolve<DatabaseService>('database'),
+    c.resolve<CacheService>('cache'),
+  ),
+);
+
+// --- Resolution ---
+
+const userService = container.resolve<UserService>('userService');
+const user = await userService.findById('abc-123');
+console.log(user);
+```
+
+<Tip>
+  Use TypeScript `Symbol` values as tokens instead of plain strings to guarantee
+  uniqueness across packages and prevent accidental token collisions when two
+  packages register a service with the same name.
+
+  ```typescript
+  // tokens.ts — shared across your app
+  export const TOKENS = {
+    Database: Symbol('database'),
+    Cache: Symbol('cache'),
+    UserService: Symbol('userService'),
+  } as const;
+
+  container.registerSingleton(TOKENS.Database, () => new DatabaseService());
+  const db = container.resolve<DatabaseService>(TOKENS.Database);
+  ```
+</Tip>

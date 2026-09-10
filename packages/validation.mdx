@@ -1,0 +1,216 @@
+---
+title: "@figentra/validation: Input Validation with Type Safety"
+sidebarTitle: "Validation"
+description: "Use @figentra/validation to define and enforce input schemas with full TypeScript inference and typed errors, catching bad data at every service boundary."
+---
+
+TypeScript's type system is a compile-time tool — it cannot protect you from malformed JSON bodies, unexpected query parameters, or data that arrives over a network at runtime. `@figentra/validation` bridges that gap by letting you declare schemas that both validate data at runtime and drive TypeScript's inference of the resulting types, so you never have to maintain a separate type definition alongside your validation logic.
+
+## Installation
+
+<CodeGroup>
+
+```bash npm
+npm install @figentra/validation
+```
+
+```bash pnpm
+pnpm add @figentra/validation
+```
+
+```bash yarn
+yarn add @figentra/validation
+```
+
+</CodeGroup>
+
+## Defining a Schema
+
+Use `schema` to compose a reusable validation schema from typed field builders. Define schemas at module scope so they are created once and reused across validation calls.
+
+```typescript
+import { schema, string, number, email } from '@figentra/validation';
+
+const CreateUserSchema = schema({
+  name: string({ minLength: 1, maxLength: 100 }),
+  email: email(),
+  age: number({ min: 13, optional: true }),
+});
+```
+
+## Validating Input
+
+Pass any unknown value to `validate` along with your schema. The result is a discriminated union — check `result.success` to branch between the valid and invalid paths.
+
+```typescript
+import { validate } from '@figentra/validation';
+
+const result = validate(CreateUserSchema, requestBody);
+
+if (!result.success) {
+  throw new ValidationError('Invalid input', result.errors);
+}
+
+const user = result.data; // fully typed as CreateUserInput
+```
+
+When validation succeeds, `result.data` is narrowed to the inferred schema type. When it fails, `result.errors` contains a structured list of every field-level problem found — not just the first one.
+
+## TypeScript Inference
+
+`schema()` builds its TypeScript type from the field declarations you provide. Use the `InferSchema` utility type to extract that type for use in function signatures, interfaces, or other type definitions — without duplicating your schema structure.
+
+```typescript
+import type { InferSchema } from '@figentra/validation';
+
+type CreateUserInput = InferSchema<typeof CreateUserSchema>;
+// Equivalent to: { name: string; email: string; age?: number }
+```
+
+<Tabs>
+  <Tab title="With InferSchema">
+    ```typescript
+    import { schema, string, email, number } from '@figentra/validation';
+    import type { InferSchema } from '@figentra/validation';
+
+    const CreateUserSchema = schema({
+      name: string({ minLength: 1, maxLength: 100 }),
+      email: email(),
+      age: number({ min: 13, optional: true }),
+    });
+
+    // Type is derived automatically — no duplication
+    type CreateUserInput = InferSchema<typeof CreateUserSchema>;
+
+    function createUser(input: CreateUserInput) {
+      // input.name, input.email are string
+      // input.age is number | undefined
+    }
+    ```
+  </Tab>
+  <Tab title="Without InferSchema">
+    ```typescript
+    // Avoid this pattern — you must keep the type and schema in sync manually
+    type CreateUserInput = {
+      name: string;
+      email: string;
+      age?: number;
+    };
+
+    function createUser(input: CreateUserInput) {
+      // TypeScript is satisfied, but there is no runtime validation
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Validation Error Format
+
+When `result.success` is `false`, `result.errors` is an array of field-level error objects. Every error identifies the offending field and provides a human-readable message suitable for returning to an API client.
+
+```json
+[
+  { "field": "email", "message": "Invalid email format" },
+  { "field": "name", "message": "Name is required" }
+]
+```
+
+Errors are collected for all fields before returning, so a single call to `validate` surfaces every problem at once rather than stopping at the first failure.
+
+## Field Builders
+
+<CardGroup cols={2}>
+  <Card title="string(options)" icon="text">
+    Validates string values. Supports `minLength`, `maxLength`, `pattern` (regex), and `optional`.
+  </Card>
+  <Card title="number(options)" icon="hash">
+    Validates numeric values. Supports `min`, `max`, `integer` (whole numbers only), and `optional`.
+  </Card>
+  <Card title="email()" icon="envelope">
+    Validates that the value is a well-formed email address. Accepts no additional options.
+  </Card>
+  <Card title="boolean()" icon="toggle-on">
+    Validates strict boolean `true` / `false` values. Use `@figentra/config`'s `boolean` field for environment variable coercion.
+  </Card>
+  <Card title="url(options)" icon="link">
+    Validates that the value is a well-formed URL. Supports `protocols` to restrict allowed URL schemes and `optional`.
+  </Card>
+  <Card title="array(itemSchema, options)" icon="list">
+    Validates an array of items, where each item is validated against `itemSchema`. Supports `minLength` and `maxLength`.
+  </Card>
+</CardGroup>
+
+## Integration with @figentra/error
+
+`result.errors` is designed to flow directly into the `ValidationError` constructor from `@figentra/error`. The error class expects the same array structure, so no mapping or transformation is required.
+
+```typescript
+import { validate } from '@figentra/validation';
+import { ValidationError } from '@figentra/error';
+
+export async function createUserHandler(req: Request, res: Response): Promise<void> {
+  const result = validate(CreateUserSchema, req.body);
+
+  if (!result.success) {
+    // result.errors flows directly into ValidationError details
+    throw new ValidationError('Validation failed', result.errors);
+  }
+
+  const user = await userService.create(result.data);
+  res.status(201).json({ user });
+}
+```
+
+The `ValidationError` is caught by your error-handling middleware, which serialises the field-level errors into the response body without any additional work.
+
+## Complete Example
+
+The following example shows a fully typed request handler for a user registration endpoint, from schema definition through to the service call.
+
+```typescript schemas/user.ts
+import { schema, string, email, number } from '@figentra/validation';
+import type { InferSchema } from '@figentra/validation';
+
+export const CreateUserSchema = schema({
+  name: string({ minLength: 1, maxLength: 100 }),
+  email: email(),
+  age: number({ min: 13, optional: true }),
+  role: string({ enum: ['admin', 'member', 'viewer'], optional: true }),
+});
+
+export type CreateUserInput = InferSchema<typeof CreateUserSchema>;
+```
+
+```typescript handlers/createUser.ts
+import { validate } from '@figentra/validation';
+import { ValidationError } from '@figentra/error';
+import { createLogger } from '@figentra/logger';
+import type { Request, Response } from 'express';
+import { CreateUserSchema } from '../schemas/user';
+import { userService } from '../services/user';
+
+const logger = createLogger({ service: 'user-service' });
+
+export async function createUserHandler(req: Request, res: Response): Promise<void> {
+  const requestLogger = logger.child({ requestId: req.headers['x-request-id'] });
+
+  const result = validate(CreateUserSchema, req.body);
+
+  if (!result.success) {
+    requestLogger.warn('Create user request failed validation', {
+      errors: result.errors,
+    });
+    throw new ValidationError('Invalid request body', result.errors);
+  }
+
+  // result.data is CreateUserInput — fully typed, guaranteed valid
+  const user = await userService.create(result.data);
+
+  requestLogger.info('User created', { userId: user.id });
+  res.status(201).json({ user });
+}
+```
+
+<Tip>
+  Validate all external inputs at your service boundaries — HTTP request bodies, query parameters, webhook payloads, and messages from queues. Once data has passed validation at the boundary, you can trust its shape and type throughout the rest of your service logic without defensive checks at every call site.
+</Tip>

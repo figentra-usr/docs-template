@@ -1,0 +1,136 @@
+---
+title: "Deployment Runbook: Building and Releasing Packages"
+sidebarTitle: "Deployment"
+description: "Follow this step-by-step runbook to build, test, version, and publish packages from your Figentra monorepo safely and consistently."
+---
+
+This runbook guides you through deploying Figentra-based projects — from verifying your local environment to tagging a production release. Follow each section in order to ensure consistent, reproducible deployments across your team.
+
+## Pre-Deployment Checklist
+
+Before you kick off the build pipeline, confirm that every item below is complete. Skipping any of these steps risks shipping broken or incomplete code.
+
+- All tests passing (`pnpm test`)
+- No TypeScript errors (`pnpm typecheck`)
+- Lint clean (`pnpm lint`)
+- Changelog updated
+- Version bumped
+
+## Build Steps
+
+<Steps>
+  <Step title="Pull latest from main">
+    Sync your local branch with the latest changes before building anything.
+
+    ```bash
+    git pull origin main
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    Use the frozen lockfile flag to guarantee that your installed packages exactly match `pnpm-lock.yaml`.
+
+    ```bash
+    pnpm install --frozen-lockfile
+    ```
+  </Step>
+
+  <Step title="Build all packages">
+    Run the top-level build script. Turborepo automatically resolves the dependency graph and builds packages in the correct order.
+
+    ```bash
+    pnpm build
+    ```
+  </Step>
+
+  <Step title="Run the full test suite">
+    Confirm that nothing regressed during the build phase before publishing anything to the registry.
+
+    ```bash
+    pnpm test
+    ```
+  </Step>
+
+  <Step title="Publish packages">
+    Publish all changed packages recursively and mark them as publicly accessible.
+
+    ```bash
+    pnpm publish -r --access public
+    ```
+  </Step>
+
+  <Step title="Tag the release">
+    Create a Git tag that maps to the published version, then push it to the remote so the release is traceable in your repository history.
+
+    ```bash
+    git tag v1.x.x && git push origin v1.x.x
+    ```
+  </Step>
+</Steps>
+
+## Versioning Strategy
+
+Figentra follows [semantic versioning (semver)](https://semver.org/) across the entire monorepo:
+
+- **All packages are released together** at the same version. A single version number represents the state of the full monorepo at any given release.
+- **Use Changesets** to manage version bumps and generate changelogs automatically. Run `pnpm changeset` to record a change, and `pnpm changeset version` to apply pending bumps before publishing.
+
+<CodeGroup>
+```bash Record a change
+pnpm changeset
+```
+
+```bash Apply version bumps
+pnpm changeset version
+```
+
+```bash Publish all changed packages
+pnpm changeset publish
+```
+</CodeGroup>
+
+## Rollback Procedure
+
+If a release introduces a regression, follow these steps to minimise user impact.
+
+<Steps>
+  <Step title="Identify the last good version">
+    Check npm or your Git tags to find the most recent stable release.
+
+    ```bash
+    # List recent Git tags
+    git tag --sort=-creatordate | head -10
+
+    # View published versions on npm
+    npm view @your-org/my-package versions --json
+    ```
+  </Step>
+
+  <Step title="Deprecate the bad version">
+    Mark the problematic version as deprecated so new installs avoid it automatically.
+
+    ```bash
+    npm deprecate @your-org/my-package@<bad-version> "Critical bug — use a different version"
+    ```
+  </Step>
+
+  <Step title="Re-publish the previous version as latest">
+    Promote the last known good version back to the `latest` dist-tag.
+
+    ```bash
+    npm publish --tag latest
+    ```
+  </Step>
+
+  <Step title="Communicate to affected teams">
+    Post an update in your incident channel and notify any downstream consumers. Reference the deprecated version and the safe version to pin.
+  </Step>
+</Steps>
+
+<Warning>
+  Never publish packages directly from your local machine in production. Always use your CI/CD pipeline to publish — this ensures credentials are managed securely, the build environment is reproducible, and there is an auditable record of every release.
+</Warning>
+
+<Tip>
+  Enable **Turborepo remote caching** to share build artifacts across your team and CI runners. After a cache hit, unchanged packages are skipped entirely, cutting build times dramatically. Run `turbo login` and `turbo link` to connect your repository to a remote cache.
+</Tip>

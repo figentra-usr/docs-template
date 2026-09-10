@@ -1,0 +1,133 @@
+---
+title: "Linting with Oxlint: Fast TypeScript Code Quality"
+sidebarTitle: "Linting"
+description: "Configure and run Oxlint across all Figentra packages for consistent, high-speed TypeScript code quality checks in development, CI, and your IDE."
+---
+
+Figentra uses **Oxlint** as its primary linter. Oxlint is written in Rust, which makes it orders of magnitude faster than JavaScript-based linters on large codebases — a full lint pass on the entire monorepo typically finishes in under a second. Its rule set is compatible with the ESLint rules your team already knows, so the transition requires almost no relearning. Zero-configuration defaults mean you can get meaningful feedback from day one without writing a single line of config.
+
+## What is Oxlint?
+
+Oxlint is a fast, Rust-based linter that implements a growing subset of ESLint-compatible rules plus its own correctness and performance checks. Key properties:
+
+- **50–100× faster** than ESLint on equivalent rule sets
+- **No plugin ecosystem complexity** — rules ship as part of the binary
+- **ESLint-compatible rule names** — `no-unused-vars`, `prefer-const`, and friends work exactly as you expect
+- **Language-server support** — integrates with any editor that speaks LSP
+
+## Installation
+
+Add Oxlint as a dev dependency in each package, or install it once at the monorepo root if you run it via the root `package.json` scripts:
+
+```bash
+pnpm add -D oxlint
+```
+
+## Configuration
+
+Create an `.oxlintrc.json` file at the root of each package (or at the monorepo root to share a single config):
+
+```json .oxlintrc.json
+{
+  "rules": {
+    "no-unused-vars": "error",
+    "no-console": "warn",
+    "prefer-const": "error",
+    "no-explicit-any": "warn"
+  },
+  "ignorePatterns": [
+    "dist/",
+    "node_modules/",
+    "*.config.ts"
+  ]
+}
+```
+
+<Note>
+Oxlint picks up `.oxlintrc.json` automatically when you run it from a directory that contains the file. You do not need to pass a `--config` flag in most cases.
+</Note>
+
+## Running Oxlint
+
+<CodeGroup>
+```bash Lint src/
+# Lint all files under src/
+pnpm oxlint src
+```
+
+```bash Auto-fix
+# Automatically fix all fixable issues
+pnpm oxlint src --fix
+```
+
+```bash CI (strict)
+# Treat warnings as errors — use this in CI pipelines
+pnpm oxlint src --deny-warnings
+```
+</CodeGroup>
+
+Add the standard `lint` script to your `package.json` so contributors and CI can use a consistent entry point:
+
+```json package.json
+{
+  "scripts": {
+    "lint": "oxlint src"
+  }
+}
+```
+
+## IDE Integration
+
+<Tabs>
+  <Tab title="VS Code">
+    Install the official **Oxlint** extension from the VS Code Marketplace (`oxc.oxlint`). Once installed:
+
+    1. Open your workspace settings (`Cmd+,` / `Ctrl+,`).
+    2. Search for **"oxlint"** and enable **Format On Save**.
+    3. Set Oxlint as the default formatter for TypeScript files if you want auto-fix on save:
+
+    ```json .vscode/settings.json
+    {
+      "[typescript]": {
+        "editor.defaultFormatter": "oxc.oxlint",
+        "editor.formatOnSave": true
+      },
+      "oxlint.enable": true
+    }
+    ```
+
+    Lint diagnostics appear inline as you type, with quick-fix actions available via the lightbulb menu.
+  </Tab>
+  <Tab title="Other Editors">
+    Any editor that supports the **Language Server Protocol (LSP)** can use Oxlint's built-in language server. Start it with:
+
+    ```bash
+    oxlint --lsp-port 3030
+    ```
+
+    Then point your editor's LSP client at `localhost:3030`. Consult your editor's documentation for how to register a custom language server. Neovim users can configure it via `nvim-lspconfig`; JetBrains IDEs can use the LSP plugin from the marketplace.
+  </Tab>
+</Tabs>
+
+## CI Integration
+
+Add the strict lint step to your CI workflow so that warnings become blocking errors before code reaches the main branch:
+
+```yaml .github/workflows/ci.yml
+- name: Lint
+  run: pnpm oxlint src --deny-warnings
+```
+
+Run this step after your `typecheck` step and before your `test` step. Linting is fast enough that it adds negligible time to the pipeline.
+
+## Full Coverage with TypeScript
+
+<Tip>
+Oxlint catches style and correctness issues, but it does not perform type-aware analysis. Run `tsc --noEmit` alongside Oxlint to get full coverage: Oxlint handles code quality rules and TypeScript handles type errors. Add both to your `package.json` scripts and run them together in CI:
+
+```bash
+pnpm typecheck && pnpm lint
+```
+
+This combination gives you the fastest possible feedback loop with no gaps in coverage.
+</Tip>

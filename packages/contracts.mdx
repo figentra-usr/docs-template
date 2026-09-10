@@ -1,0 +1,166 @@
+---
+title: "@figentra/contracts: Shared TypeScript Type Contracts"
+sidebarTitle: "Contracts"
+description: "Use @figentra/contracts as a single source of truth for shared interfaces, types, and data shapes exchanged across your Figentra monorepo packages."
+---
+
+The `@figentra/contracts` package is the canonical home for every TypeScript interface and type that crosses a package boundary in your monorepo. Instead of duplicating type definitions or importing from sibling packages directly, all consuming packages declare a dependency on `@figentra/contracts` and import their shared types from there. This keeps your dependency graph acyclic, your types consistent, and your refactoring surface small.
+
+## Installation
+
+<CodeGroup>
+
+```bash npm
+npm install @figentra/contracts
+```
+
+```bash pnpm
+pnpm add @figentra/contracts
+```
+
+```bash yarn
+yarn add @figentra/contracts
+```
+
+</CodeGroup>
+
+## Core Concepts
+
+Contracts define the **shape of data** passed between packages and services — not the implementation. A contract says "this service accepts X and returns Y" without dictating how it does so. Every consuming package imports exclusively from `@figentra/contracts` rather than from each other, which prevents circular dependencies and makes the inter-package API surface explicit and versioned.
+
+Think of `@figentra/contracts` as a shared vocabulary: if two packages need to agree on a type, that type lives here.
+
+## Built-in Types
+
+`@figentra/contracts` ships several foundational types that the rest of the Figentra ecosystem builds on.
+
+### `ServiceContract<T>`
+
+The base interface for any service that operates on a resource of type `T`. Extend this interface when defining domain-specific service contracts.
+
+```typescript
+export interface ServiceContract<T> {
+  readonly resourceType: string;
+}
+```
+
+### `HealthStatus`
+
+The standard shape of a health check response. Used by `@figentra/health` and any service that exposes a `/health` endpoint.
+
+```typescript
+export interface HealthStatus {
+  status: 'healthy' | 'unhealthy' | 'degraded';
+  timestamp: string;
+  checks: Array<{
+    name: string;
+    status: 'healthy' | 'unhealthy';
+    latencyMs?: number;
+    message?: string;
+  }>;
+}
+```
+
+### `ErrorContract`
+
+The standard error payload shape. Use this type when serializing errors to HTTP responses or inter-service messages.
+
+```typescript
+export interface ErrorContract {
+  code: string;
+  message: string;
+  statusCode: number;
+  details?: unknown;
+}
+```
+
+### `PaginatedResponse<T>`
+
+A generic wrapper for any paginated list response. Use it whenever an endpoint returns a subset of a larger collection.
+
+```typescript
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasNextPage: boolean;
+}
+```
+
+## Defining Your Own Contracts
+
+Extend the built-in types to define domain-specific contracts. The pattern below creates a `UserService` contract by extending `ServiceContract<User>`, giving you the base interface plus your domain methods.
+
+```typescript
+import type { ServiceContract } from '@figentra/contracts';
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+}
+
+export interface CreateUserInput {
+  name: string;
+  email: string;
+}
+
+export interface UserService extends ServiceContract<User> {
+  findById(id: string): Promise<User>;
+  create(data: CreateUserInput): Promise<User>;
+}
+```
+
+Place this file inside `@figentra/contracts/src/user.ts` (or a relevant sub-module) so all packages share the exact same definition.
+
+## Usage Example
+
+The following example shows how two packages coordinate through a shared contract without depending on each other.
+
+**Package A — `@acme/users` (implementation)**
+
+```typescript
+// packages/users/src/UserServiceImpl.ts
+import type { UserService, User, CreateUserInput } from '@figentra/contracts';
+
+export class UserServiceImpl implements UserService {
+  readonly resourceType = 'User';
+
+  async findById(id: string): Promise<User> {
+    // fetch from database ...
+    return { id, name: 'Alice', email: 'alice@example.com', createdAt: new Date().toISOString() };
+  }
+
+  async create(data: CreateUserInput): Promise<User> {
+    // persist to database ...
+    return { id: crypto.randomUUID(), ...data, createdAt: new Date().toISOString() };
+  }
+}
+```
+
+**Package B — `@acme/api` (consumer)**
+
+```typescript
+// packages/api/src/routes/users.ts
+import type { UserService } from '@figentra/contracts';
+
+export function buildUserRoutes(userService: UserService) {
+  return {
+    async getUser(id: string) {
+      const user = await userService.findById(id);
+      return { status: 200, body: user };
+    },
+  };
+}
+```
+
+Package B only depends on `@figentra/contracts` — it has no compile-time knowledge of `@acme/users`. You can swap the implementation at any time without touching `@acme/api`.
+
+<Tip>
+  Keep contracts minimal. Only define what actually crosses a package boundary.
+  Internal types — those only used within a single package — belong in that
+  package, not here. A bloated contracts package becomes a bottleneck and forces
+  unnecessary rebuilds across the monorepo.
+</Tip>

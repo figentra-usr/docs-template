@@ -1,0 +1,244 @@
+---
+title: "@figentra/health: Service Health Check Utilities"
+sidebarTitle: "Health"
+description: "Add standardized, production-ready health check endpoints to any Figentra service using @figentra/health's typed checks and aggregated status responses."
+---
+
+Health checks give your infrastructure — load balancers, container orchestrators, and on-call engineers — an instant answer to "is this service ready to receive traffic?" The `@figentra/health` package provides a composable, typed health check system that aggregates the status of your database, cache, external APIs, and any other dependency into a single `/health` endpoint. When every Figentra service uses the same package, your monitoring dashboards and runbooks stay consistent across the entire platform.
+
+## Installation
+
+<CodeGroup>
+
+```bash npm
+npm install @figentra/health
+```
+
+```bash pnpm
+pnpm add @figentra/health
+```
+
+```bash yarn
+yarn add @figentra/health
+```
+
+</CodeGroup>
+
+## Quick Start
+
+<Steps>
+  <Step title="Import createHealthCheck">
+    Import `createHealthCheck` from `@figentra/health` at the top of your server entry point.
+
+    ```typescript
+    import { createHealthCheck } from '@figentra/health';
+    ```
+  </Step>
+
+  <Step title="Define your health checks">
+    Create an array of named checks. Each check is an async function that resolves to a `HealthCheckResult`. Return `status: 'healthy'` on success and `status: 'unhealthy'` with a descriptive `message` on failure.
+
+    ```typescript
+    import { type HealthCheck } from '@figentra/health';
+    import { db } from './db';
+    import { redis } from './cache';
+
+    const checks: HealthCheck[] = [
+      {
+        name: 'database',
+        check: async () => {
+          const start = Date.now();
+          await db.raw('SELECT 1');
+          return { status: 'healthy', latencyMs: Date.now() - start };
+        },
+      },
+      {
+        name: 'cache',
+        check: async () => {
+          const start = Date.now();
+          await redis.ping();
+          return { status: 'healthy', latencyMs: Date.now() - start };
+        },
+      },
+    ];
+    ```
+  </Step>
+
+  <Step title="Mount the handler at /health">
+    Pass your checks to `createHealthCheck` and mount the returned handler on your HTTP server.
+
+    ```typescript
+    const healthHandler = createHealthCheck(checks);
+
+    // The handler is framework-agnostic — see the complete example below
+    // for Hono and Express integration.
+    app.get('/health', healthHandler);
+    ```
+  </Step>
+</Steps>
+
+## API Reference
+
+### `createHealthCheck(checks)`
+
+Creates a health check request handler that runs all provided checks in parallel and aggregates the results.
+
+<ParamField path="checks" type="HealthCheck[]" required>
+  An array of health check definitions. All checks run concurrently. If any
+  single check throws or returns `status: 'unhealthy'`, the overall response
+  status becomes `'unhealthy'` and the HTTP status code becomes `503`.
+</ParamField>
+
+Returns a framework-agnostic handler function with the signature `(req, res) => Promise<void>`. Adapters for Hono, Express, and Fastify are available as named exports (see the complete example below).
+
+---
+
+### `HealthCheck` type
+
+Describes a single check that the handler will run.
+
+<ParamField path="name" type="string" required>
+  A human-readable identifier for this check (e.g. `"database"`, `"stripe-api"`). Appears verbatim in the response JSON.
+</ParamField>
+
+<ParamField path="check" type="() => Promise<HealthCheckResult>" required>
+  An async function that performs the check. It must resolve to a
+  `HealthCheckResult`. If it throws, the check is recorded as `unhealthy` with
+  the error message captured automatically.
+</ParamField>
+
+---
+
+### `HealthCheckResult` type
+
+The value your `check` function must return.
+
+<ParamField path="status" type="'healthy' | 'unhealthy'" required>
+  Whether the dependency is reachable and functioning correctly.
+</ParamField>
+
+<ParamField path="message" type="string">
+  An optional human-readable explanation. Recommended when `status` is
+  `'unhealthy'` to surface the root cause without requiring log access.
+</ParamField>
+
+<ParamField path="latencyMs" type="number">
+  The round-trip time in milliseconds for the check operation. Include this
+  whenever you can measure it — it is surfaced in the response and useful for
+  latency-based alerting.
+</ParamField>
+
+## Example Response
+
+A successful response looks like this:
+
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-15T10:00:00Z",
+  "checks": [
+    { "name": "database", "status": "healthy", "latencyMs": 12 },
+    { "name": "cache", "status": "healthy", "latencyMs": 3 }
+  ]
+}
+```
+
+When one or more checks fail, the top-level `status` flips to `"unhealthy"` and the individual check entry carries the reason:
+
+```json
+{
+  "status": "unhealthy",
+  "timestamp": "2024-01-15T10:00:00Z",
+  "checks": [
+    { "name": "database", "status": "unhealthy", "message": "Connection refused on port 5432" },
+    { "name": "cache", "status": "healthy", "latencyMs": 3 }
+  ]
+}
+```
+
+<Note>
+  The handler returns HTTP **200** when the overall status is `"healthy"` and
+  HTTP **503 Service Unavailable** when any check is `"unhealthy"`. Configure
+  your load balancer or readiness probe to treat anything other than `200` as
+  out-of-rotation.
+</Note>
+
+## Complete Example
+
+<Tabs>
+  <Tab title="Hono">
+    ```typescript
+    import { Hono } from 'hono';
+    import { createHealthCheck, honoAdapter } from '@figentra/health';
+    import { db } from './db';
+    import { redis } from './cache';
+
+    const app = new Hono();
+
+    const healthHandler = createHealthCheck([
+      {
+        name: 'database',
+        check: async () => {
+          const start = Date.now();
+          await db.raw('SELECT 1');
+          return { status: 'healthy', latencyMs: Date.now() - start };
+        },
+      },
+      {
+        name: 'cache',
+        check: async () => {
+          const start = Date.now();
+          await redis.ping();
+          return { status: 'healthy', latencyMs: Date.now() - start };
+        },
+      },
+      {
+        name: 'stripe-api',
+        check: async () => {
+          const start = Date.now();
+          await fetch('https://status.stripe.com/api/v2/status.json');
+          return { status: 'healthy', latencyMs: Date.now() - start };
+        },
+      },
+    ]);
+
+    app.get('/health', honoAdapter(healthHandler));
+
+    export default app;
+    ```
+  </Tab>
+
+  <Tab title="Express">
+    ```typescript
+    import express from 'express';
+    import { createHealthCheck, expressAdapter } from '@figentra/health';
+    import { db } from './db';
+    import { redis } from './cache';
+
+    const app = express();
+
+    const healthHandler = createHealthCheck([
+      {
+        name: 'database',
+        check: async () => {
+          const start = Date.now();
+          await db.raw('SELECT 1');
+          return { status: 'healthy', latencyMs: Date.now() - start };
+        },
+      },
+      {
+        name: 'cache',
+        check: async () => {
+          const start = Date.now();
+          await redis.ping();
+          return { status: 'healthy', latencyMs: Date.now() - start };
+        },
+      },
+    ]);
+
+    app.get('/health', expressAdapter(healthHandler));
+
+    app.listen(3000, () => console.log('Server listening on port 3000'));
+    ```
+  </Tab>
+</Tabs>

@@ -1,0 +1,222 @@
+---
+title: "@figentra/testing: Test Utilities and Helpers"
+sidebarTitle: "Testing"
+description: "Simplify unit and integration tests with @figentra/testing's mock container, logger stub, fixture factory, and async polling helpers — built for Vitest."
+---
+
+Writing tests for a service-oriented monorepo involves a lot of repetitive setup: wiring a fake DI container, silencing log output, generating realistic test data, and polling for async side-effects to settle. `@figentra/testing` eliminates that boilerplate by shipping a focused set of utilities that integrate seamlessly with Vitest and the rest of the Figentra ecosystem. Import what you need, write the test, ship it.
+
+## Installation
+
+Install `@figentra/testing` as a development dependency — it should never appear in production bundles.
+
+<CodeGroup>
+
+```bash npm
+npm install --save-dev @figentra/testing
+```
+
+```bash pnpm
+pnpm add --save-dev @figentra/testing
+```
+
+```bash yarn
+yarn add --dev @figentra/testing
+```
+
+</CodeGroup>
+
+<Note>
+  Always install `@figentra/testing` as a `devDependency`. It depends on
+  Vitest internals and test-only shims that must not be included in production
+  builds. If you accidentally add it as a regular dependency, your production
+  bundle size will increase and you may see runtime errors in non-test
+  environments.
+</Note>
+
+## What's Included
+
+<CardGroup cols={2}>
+  <Card title="createMockContainer" icon="box">
+    Creates a pre-wired `Container` instance populated with the mock services
+    you supply. Ideal for unit-testing services that accept a container as a
+    dependency.
+  </Card>
+  <Card title="mockLogger" icon="file-lines">
+    A no-op logger that satisfies the `Logger` interface while silently
+    recording every call. Inspect `.calls` in your assertions without polluting
+    test output.
+  </Card>
+  <Card title="createTestFixture&lt;T&gt;" icon="flask">
+    A strongly-typed factory for test data. Define a default shape once, then
+    call `.build(overrides)` in each test to produce a variant with only the
+    fields that matter.
+  </Card>
+  <Card title="waitForCondition" icon="clock">
+    An async polling helper that repeatedly evaluates a predicate until it
+    returns `true` or a configurable timeout elapses. Keeps integration tests
+    free of arbitrary `setTimeout` calls.
+  </Card>
+</CardGroup>
+
+## Usage Examples
+
+### Mock Container
+
+Use `createMockContainer` when the system-under-test resolves dependencies from a container. Pass an object whose keys are token strings and whose values are partial mock implementations — Vitest spy functions work perfectly here.
+
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import { createMockContainer } from '@figentra/testing';
+import { OrderService } from '../src/OrderService';
+
+describe('OrderService', () => {
+  it('looks up the user before creating an order', async () => {
+    const findById = vi.fn().mockResolvedValue({ id: '1', name: 'Alice' });
+
+    const container = createMockContainer({
+      userService: { findById },
+      logger: { info: vi.fn(), error: vi.fn() },
+    });
+
+    const orderService = new OrderService(container);
+    await orderService.createOrder({ userId: '1', itemId: 'book-42' });
+
+    expect(findById).toHaveBeenCalledWith('1');
+  });
+});
+```
+
+### Mock Logger
+
+Import `mockLogger` directly when your service accepts a logger instance rather than a full container.
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { mockLogger } from '@figentra/testing';
+import { PaymentService } from '../src/PaymentService';
+
+describe('PaymentService', () => {
+  it('logs a warning when the payment provider is slow', async () => {
+    const logger = mockLogger();
+    const service = new PaymentService(logger);
+
+    await service.charge({ amount: 100, currency: 'USD' });
+
+    const warnCalls = logger.calls.warn;
+    expect(warnCalls.some((args) => args[0].includes('slow'))).toBe(true);
+  });
+});
+```
+
+### Test Fixture
+
+`createTestFixture` returns a factory bound to a default object shape. Call `.build()` to get the default, or `.build(overrides)` to merge in specific field values.
+
+```typescript
+import { createTestFixture } from '@figentra/testing';
+
+const userFixture = createTestFixture({
+  id: '1',
+  name: 'Alice',
+  email: 'alice@example.com',
+  role: 'member' as const,
+});
+
+const alice = userFixture.build();
+// { id: '1', name: 'Alice', email: 'alice@example.com', role: 'member' }
+
+const bob = userFixture.build({ name: 'Bob', email: 'bob@example.com' });
+// { id: '1', name: 'Bob', email: 'bob@example.com', role: 'member' }
+
+const admin = userFixture.build({ role: 'admin' });
+// { id: '1', name: 'Alice', email: 'alice@example.com', role: 'admin' }
+```
+
+### waitForCondition
+
+Use `waitForCondition` in integration tests where an action triggers an async side-effect — a database write, an event emission, a queue message — that you need to assert against without knowing exactly when it will complete.
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { waitForCondition } from '@figentra/testing';
+import { eventBus } from '../src/eventBus';
+
+describe('OrderService integration', () => {
+  it('emits an order-created event after a successful order', async () => {
+    const received: unknown[] = [];
+    eventBus.on('order-created', (event) => received.push(event));
+
+    await orderService.createOrder({ userId: '1', itemId: 'book-42' });
+
+    await waitForCondition(() => received.length > 0, {
+      timeoutMs: 2000,
+      intervalMs: 50,
+    });
+
+    expect(received[0]).toMatchObject({ userId: '1' });
+  });
+});
+```
+
+## API Reference
+
+### `createMockContainer(services)`
+
+```typescript
+function createMockContainer(
+  services: Record<string, unknown>,
+): Container
+```
+
+Creates a `Container` instance pre-populated with the provided mock services. Each key in `services` is registered as a singleton under the matching string token.
+
+---
+
+### `mockLogger()`
+
+```typescript
+function mockLogger(): MockLogger
+
+interface MockLogger {
+  info(...args: unknown[]): void;
+  warn(...args: unknown[]): void;
+  error(...args: unknown[]): void;
+  debug(...args: unknown[]): void;
+  calls: {
+    info: unknown[][];
+    warn: unknown[][];
+    error: unknown[][];
+    debug: unknown[][];
+  };
+}
+```
+
+Returns a logger that satisfies the Figentra `Logger` interface. All methods are no-ops; each call is appended to the corresponding array under `.calls` for later assertion.
+
+---
+
+### `createTestFixture<T>(defaults)`
+
+```typescript
+function createTestFixture<T>(defaults: T): TestFixture<T>
+
+interface TestFixture<T> {
+  build(overrides?: Partial<T>): T;
+}
+```
+
+Creates a fixture factory bound to `defaults`. Call `.build()` to get the default object, or `.build(overrides)` to return a shallow-merged copy with the specified fields replaced.
+
+---
+
+### `waitForCondition(predicate, options?)`
+
+```typescript
+async function waitForCondition(
+  predicate: () => boolean | Promise<boolean>,
+  options?: { timeoutMs?: number; intervalMs?: number },
+): Promise<void>
+```
+
+Polls `predicate` every `intervalMs` milliseconds (default `100`) until it returns `true` or `timeoutMs` milliseconds (default `5000`) elapses. Throws a `TimeoutError` if the predicate never becomes truthy within the timeout.

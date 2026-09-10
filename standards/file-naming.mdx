@@ -1,0 +1,72 @@
+---
+title: "File Naming Conventions for Figentra Projects"
+sidebarTitle: "File Naming"
+description: "Learn the kebab-case naming rules for TypeScript source, test, type definition, config, and barrel index files in every Figentra package."
+---
+
+Consistent file naming removes ambiguity when navigating a large monorepo. When every contributor follows the same conventions, you can predict a file's location and purpose before you open it, and tooling such as linters, bundlers, and test runners can apply rules uniformly across the codebase.
+
+## General Rules
+
+All files in a Figentra project use **`kebab-case`**. The specific suffix you append identifies what role a file plays:
+
+- **TypeScript source files** use the plain `.ts` extension: `my-module.ts`
+- **Unit test files** append `.test.ts`: `my-module.test.ts`
+- **Integration and end-to-end test files** append `.spec.ts`: `my-module.spec.ts`
+- **Index / barrel export files** are always named `index.ts` and form the public API of a package
+- **Type definition files** append `.types.ts`: `my-module.types.ts`
+- **Configuration files** append `.config.ts`: `my-config.config.ts`
+
+## File Type Reference
+
+Use the table below as a quick reference when creating new files:
+
+| File Type | Convention | Example |
+|---|---|---|
+| Source | `kebab-case.ts` | `user-service.ts` |
+| Unit test | `kebab-case.test.ts` | `user-service.test.ts` |
+| Integration test | `kebab-case.spec.ts` | `user-service.spec.ts` |
+| Types | `kebab-case.types.ts` | `user-service.types.ts` |
+| Config | `kebab-case.config.ts` | `vitest.config.ts` |
+| Index / barrel | `index.ts` | `index.ts` |
+
+## What to Avoid
+
+<Warning>
+The following patterns are **not permitted** in Figentra projects. Avoid them even when working inside a package that predates these standards.
+
+```
+camelCase.ts       ❌  no camelCase filenames
+MyComponent.ts     ❌  no PascalCase filenames
+my_module.ts       ❌  no snake_case filenames
+my module.ts       ❌  no spaces in filenames
+```
+</Warning>
+
+## Class and Interface Files
+
+When a file exports a single class or interface, derive the filename from the exported identifier by converting it to kebab-case. The mapping is always one-to-one, so readers can locate the definition without searching.
+
+```typescript user-service.ts
+// Class name: UserService  →  file name: user-service.ts
+export class UserService {
+  async findById(id: string) {
+    // ...
+  }
+}
+```
+
+Additional examples:
+
+| Exported Identifier | File Name |
+|---|---|
+| `UserService` | `user-service.ts` |
+| `AuthMiddleware` | `auth-middleware.ts` |
+| `DatabaseConfig` | `database-config.types.ts` |
+| `HttpClientError` | `http-client-error.ts` |
+
+## Enforcing Naming in Your Editor
+
+<Tip>
+Configure your editor to flag naming violations automatically. If you use ESLint or Oxlint alongside a file-naming plugin (for example, `eslint-plugin-filenames-simple`), add a rule that enforces `kebab-case` on all `.ts` files. Catching violations at save time is faster than reviewing them in CI.
+</Tip>

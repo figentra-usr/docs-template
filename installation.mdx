@@ -1,0 +1,240 @@
+---
+title: "Installing Figentra Packages in Your Monorepo"
+sidebarTitle: "Installation"
+description: "Install and configure @figentra/* packages in a TypeScript monorepo with pnpm workspaces, strict TypeScript settings, and path aliases."
+---
+
+All Figentra packages are published under the `@figentra` scope on the npm registry. They are designed to be installed together inside a monorepo workspace — each package is independently versioned but built to work as a cohesive suite. This guide covers system requirements, workspace configuration, installing the core packages, and verifying that everything compiles correctly.
+
+## System Requirements
+
+Make sure your environment satisfies the following before installing any `@figentra/*` packages:
+
+| Tool | Required version | Notes |
+|---|---|---|
+| Node.js | 18.x or later | LTS releases are recommended for production |
+| pnpm | 8.x or later | Recommended; npm 9+ and Yarn 4+ also work |
+| TypeScript | 5.x or later | Strict mode must be enabled (see configuration below) |
+
+<Note>
+  Figentra packages are authored in TypeScript and ship both CommonJS and ESM builds. You do not need any extra bundler plugins to consume them — import them directly in `.ts` source files.
+</Note>
+
+## Workspace Setup
+
+Figentra expects a monorepo structure where packages share a single `node_modules` hoist at the workspace root. The examples below use pnpm workspaces, but the same principle applies to Yarn workspaces and Turborepo.
+
+Create a `pnpm-workspace.yaml` file at the root of your repository:
+
+```yaml pnpm-workspace.yaml
+packages:
+  - "packages/*"
+  - "apps/*"
+  - "services/*"
+```
+
+Then initialise the root `package.json` if you have not done so already:
+
+```bash
+pnpm init
+```
+
+Your repository layout should look similar to this after setup:
+
+```text
+my-app/
+├── apps/
+│   └── web/
+├── packages/
+│   └── core/
+├── services/
+│   └── api/
+├── pnpm-workspace.yaml
+├── package.json
+└── tsconfig.base.json
+```
+
+## Installing Packages
+
+Install one or more `@figentra/*` packages using your preferred package manager. Add the `-w` flag (pnpm) or `-W` flag (npm/Yarn) to hoist the packages to the workspace root so every app and service can import them without repeating the install.
+
+<CodeGroup>
+
+```bash pnpm
+pnpm add -w @figentra/contracts @figentra/error @figentra/health @figentra/container @figentra/testing
+```
+
+```bash npm
+npm install --save @figentra/contracts @figentra/error @figentra/health @figentra/container @figentra/testing -W
+```
+
+```bash yarn
+yarn add @figentra/contracts @figentra/error @figentra/health @figentra/container @figentra/testing -W
+```
+
+</CodeGroup>
+
+Each package serves a distinct purpose:
+
+| Package | Purpose |
+|---|---|
+| `@figentra/contracts` | Define typed service contracts and data boundaries |
+| `@figentra/error` | Throw and handle structured, machine-readable errors |
+| `@figentra/health` | Expose standardised health-check endpoints |
+| `@figentra/container` | Wire up dependency injection containers with type safety |
+| `@figentra/testing` | Test utilities, contract assertion helpers, and mocks |
+
+<Note>
+  Keep all `@figentra/*` packages on the **same version** across your workspace. Running mismatched versions causes subtle type incompatibilities that are difficult to diagnose. Use a tool like [syncpack](https://jamiemason.github.io/syncpack/) or a Turborepo generator to enforce version consistency in CI.
+</Note>
+
+## TypeScript Configuration
+
+Figentra packages require TypeScript 5+ with `strict` mode enabled. The recommended approach is to define a shared base config at the repository root and extend it in each package.
+
+Create `tsconfig.base.json` at the workspace root:
+
+```json tsconfig.base.json
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "skipLibCheck": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@figentra/contracts": ["./node_modules/@figentra/contracts/src/index.ts"],
+      "@figentra/error": ["./node_modules/@figentra/error/src/index.ts"],
+      "@figentra/health": ["./node_modules/@figentra/health/src/index.ts"],
+      "@figentra/container": ["./node_modules/@figentra/container/src/index.ts"],
+      "@figentra/testing": ["./node_modules/@figentra/testing/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "coverage"]
+}
+```
+
+Each package in your monorepo should extend this base config:
+
+```json packages/core/tsconfig.json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+<Tabs>
+  <Tab title="Turborepo">
+    If you are using Turborepo, add a `build` task to `turbo.json` so TypeScript compilation is cached and only re-runs when source files change:
+
+    ```json turbo.json
+    {
+      "$schema": "https://turbo.build/schema.json",
+      "pipeline": {
+        "build": {
+          "dependsOn": ["^build"],
+          "outputs": ["dist/**", "*.d.ts"]
+        },
+        "typecheck": {
+          "dependsOn": ["^build"]
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="pnpm workspaces only">
+    Without Turborepo, add a root-level `build` script that runs `tsc --build` with TypeScript project references:
+
+    ```json package.json
+    {
+      "scripts": {
+        "build": "tsc --build",
+        "typecheck": "tsc --noEmit"
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Do not set `"skipLibCheck": true` in your base config. Figentra packages ship full declaration files, and skipping lib checks hides real type errors at package boundaries that would otherwise surface immediately.
+</Warning>
+
+## Verifying the Install
+
+After installing the packages and configuring TypeScript, create a small smoke-test file to confirm that imports resolve and the compiler is satisfied:
+
+```typescript src/verify.ts
+import { defineContract, Contract } from "@figentra/contracts";
+import { FigentraError, ErrorCode } from "@figentra/error";
+
+// Define a minimal contract
+interface PingContract extends Contract {
+  message: string;
+  timestamp: Date;
+}
+
+const pingContract = defineContract<PingContract>({
+  name: "PingContract",
+  version: "1.0.0",
+});
+
+// Construct a typed error
+const notFound = new FigentraError({
+  code: ErrorCode.NOT_FOUND,
+  message: "Resource not found.",
+});
+
+console.log("Contract name:", pingContract.name);
+console.log("Error code:", notFound.code);
+```
+
+Run the TypeScript compiler in check-only mode:
+
+```bash
+pnpm tsc --noEmit
+```
+
+If the command exits with code `0` and no output, the installation is complete and your workspace is ready.
+
+<Tip>
+  Add `pnpm tsc --noEmit` as a step in your CI pipeline so type errors are caught on every pull request, before any code reaches your main branch.
+</Tip>
+
+---
+
+Your workspace is now fully configured to use `@figentra/*` packages. Continue with the guides below:
+
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Follow a step-by-step walkthrough to define your first contract and handle typed errors in under five minutes.
+  </Card>
+  <Card
+    title="Packages Overview"
+    icon="box"
+    href="/packages/overview"
+  >
+    Explore every `@figentra/*` package in depth, including full API references and usage patterns.
+  </Card>
+</CardGroup>

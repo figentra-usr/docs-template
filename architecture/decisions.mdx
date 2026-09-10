@@ -1,0 +1,135 @@
+---
+title: "Architecture Decision Records for Figentra Projects"
+sidebarTitle: "Decisions"
+description: "Understand the ADR process Figentra uses and the key decisions — from monorepo layout to typed contracts — that shape every project built on the platform."
+---
+
+Every non-trivial architectural choice leaves a trail of implicit reasoning that fades from memory faster than the code it shaped. Architecture Decision Records (ADRs) make that reasoning explicit and permanent. Figentra uses ADRs to document why the platform is built the way it is, so that future contributors can challenge, update, or supersede decisions with full context rather than working around constraints they don't understand.
+
+## What is an ADR?
+
+An ADR is a short markdown document that captures three things: the **context** that made a decision necessary, the **decision** itself, and the **consequences** — both the benefits gained and the trade-offs accepted. ADRs are not design documents or RFCs; they are lightweight records, typically one page, written after enough discussion has happened to reach a conclusion. Once accepted, an ADR is never deleted — it is either left in place, marked deprecated, or superseded by a newer record that links back to it.
+
+## ADR Template
+
+Use the following template for every new decision record. Copy it verbatim and fill in each section — resist the urge to skip sections, even when consequences feel obvious.
+
+```markdown
+# ADR-NNNN: Title
+
+## Status
+Proposed | Accepted | Deprecated | Superseded
+
+## Context
+What is the issue that we're seeing that is motivating this decision?
+
+## Decision
+What is the change that we're proposing and/or doing?
+
+## Consequences
+What becomes easier or more difficult because of this change?
+```
+
+<Note>
+  Store your ADRs in `docs/adr/` within the repository, named `NNNN-short-title.md` (e.g. `0003-pnpm-workspaces.md`). Keeping them in the repo alongside source code means every PR that changes behaviour can reference the ADR that justifies it.
+</Note>
+
+## Key Decisions
+
+The following ADRs define the foundation of every Figentra project. Read them before proposing changes to the platform's core toolchain or package structure.
+
+<Accordion title="ADR-0001: Monorepo over Polyrepo">
+  **Status:** Accepted
+
+  **Context:** Coordinating changes across multiple repositories — shared interfaces, tooling upgrades, cross-cutting refactors — creates significant overhead. Each repository requires its own CI pipeline, versioning strategy, and contributor onboarding.
+
+  **Decision:** All packages, applications, and tooling configurations are maintained in a single repository.
+
+  **Consequences:** Cross-package changes ship in a single PR and are validated together in CI. The trade-off is that the repository grows larger over time and checkout times increase, which is mitigated by sparse checkout and Turborepo's incremental task execution.
+</Accordion>
+
+<Accordion title="ADR-0002: TypeScript Strict Mode">
+  **Status:** Accepted
+
+  **Context:** Loosely typed TypeScript code defers type errors to runtime and reduces the value of IDE tooling. Teams that opt out of strict mode tend to accumulate implicit `any` types that are expensive to remediate later.
+
+  **Decision:** All packages enable `"strict": true` in `tsconfig.json`, enforcing `strictNullChecks`, `noImplicitAny`, and the full set of strict flags.
+
+  **Consequences:** Strict mode catches entire categories of bugs at compile time and dramatically improves autocomplete and refactoring support. The initial cost is higher — writing correct types up front takes longer — but reduces debugging time and production incidents over the lifetime of the project.
+</Accordion>
+
+<Accordion title="ADR-0003: pnpm Workspaces">
+  **Status:** Accepted
+
+  **Context:** npm and Yarn v1 hoist all dependencies into a flat `node_modules`, allowing packages to accidentally import dependencies they have not declared. This creates phantom dependency bugs that are hard to reproduce and fix.
+
+  **Decision:** The workspace uses pnpm with a `pnpm-workspace.yaml` manifest. pnpm's strict hoisting ensures each package can only import what it explicitly declares in its own `package.json`.
+
+  **Consequences:** Installs are faster due to content-addressable storage and hard linking. Phantom dependency bugs are eliminated. The trade-off is that some older packages with undeclared peer dependencies may require explicit patching or overrides.
+</Accordion>
+
+<Accordion title="ADR-0004: Turborepo for Build Orchestration">
+  **Status:** Accepted
+
+  **Context:** As the number of packages grows, running builds and tests sequentially becomes slow. A naive parallel approach ignores package dependency order and produces incorrect incremental builds.
+
+  **Decision:** Turborepo is used to define a `turbo.json` task pipeline that respects workspace dependency order, caches task outputs locally, and supports remote caching in CI.
+
+  **Consequences:** Build and test times drop significantly on subsequent runs because only changed packages and their dependents are re-executed. Remote caching means CI runs share the same cache as local development. The trade-off is a `turbo.json` configuration file that must be updated when new pipeline tasks are introduced.
+</Accordion>
+
+<Accordion title="ADR-0005: Vitest for Testing">
+  **Status:** Accepted
+
+  **Context:** Jest requires Babel or `ts-jest` to handle TypeScript and ESM, adding configuration overhead and slower cold-start times. The ecosystem has been moving toward native ESM, making Jest's transform pipeline an ongoing maintenance burden.
+
+  **Decision:** All packages use Vitest as the test runner. Vitest runs TypeScript natively, supports ESM without transformation, and reuses Vite's module resolution.
+
+  **Consequences:** Test startup is significantly faster than Jest, and watch mode is near-instant. Vitest's API is Jest-compatible, so most existing test patterns work unchanged. The trade-off is a smaller ecosystem of third-party Vitest plugins compared to Jest.
+</Accordion>
+
+<Accordion title="ADR-0006: Oxlint for Linting">
+  **Status:** Accepted
+
+  **Context:** ESLint performance degrades as the number of files and rules grows. Large Figentra workspaces with hundreds of source files can take tens of seconds to lint, slowing down both CI and pre-commit hooks.
+
+  **Decision:** Oxlint replaces ESLint as the primary linter. Oxlint is written in Rust, runs on multiple threads, and supports a large subset of ESLint's rule catalogue with zero configuration.
+
+  **Consequences:** Lint runs are 50–100× faster than equivalent ESLint runs. The trade-off is that Oxlint does not yet support every ESLint plugin — custom rules or less common plugin rules may need to be enforced through TypeScript's own compiler checks or deferred until Oxlint adds support.
+</Accordion>
+
+<Accordion title="ADR-0007: Typed Contracts Package">
+  **Status:** Accepted
+
+  **Context:** When shared interfaces are defined inline within individual services, they diverge over time. Two services that should agree on the shape of a `User` object end up with subtly different types, and only fail at runtime when they communicate.
+
+  **Decision:** All shared interfaces, enums, and data transfer object types live in a single `@your-org/contracts` package. No service defines a type that another service also consumes — both import from contracts instead.
+
+  **Consequences:** There is a single authoritative definition for every shared data shape. Changing a contract is a deliberate, visible action that immediately surfaces type errors in every consumer. The trade-off is that `@your-org/contracts` becomes a high-traffic package; keep it free of runtime logic to prevent accidental coupling of behaviour.
+</Accordion>
+
+## Creating a New ADR
+
+Follow these steps whenever a significant decision needs to be recorded — whether you are proposing something new or documenting a choice that has already been made informally.
+
+<Steps>
+  <Step title="Copy the template">
+    Create a new file in `docs/adr/` named `NNNN-short-title.md`, where `NNNN` is the next sequential number. Copy the ADR template from the section above into the file.
+  </Step>
+  <Step title="Fill in the context">
+    Write the **Context** section first. Describe the problem, constraint, or opportunity that is forcing a decision. Include any relevant constraints — performance targets, team size, existing dependencies — that a reader five years from now would not otherwise know.
+  </Step>
+  <Step title="State the decision and consequences">
+    Write the **Decision** section as a clear, active-voice statement of what you are doing. Then write the **Consequences** section honestly — include both the benefits and the trade-offs. Set the status to `Proposed`.
+  </Step>
+  <Step title="Propose in a pull request">
+    Open a PR that contains only the new ADR file. Link to any relevant issues, RFC threads, or prior discussions in the PR description. Request review from maintainers and affected team members.
+  </Step>
+  <Step title="Update the status after the decision">
+    Once the team reaches consensus, update the **Status** field to `Accepted` (or `Deprecated` if you are retiring an existing decision) and merge the PR. If this ADR supersedes an older one, add a `Superseded by ADR-NNNN` note to the older record.
+  </Step>
+</Steps>
+
+<Warning>
+  Never delete an ADR, even if the decision it describes has been reversed. Superseded records are part of the project's history. A reader trying to understand why the codebase looks the way it does needs to see the full chain of decisions, not just the current one.
+</Warning>

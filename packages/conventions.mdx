@@ -1,0 +1,123 @@
+---
+title: "Package Conventions: How Figentra Packages Are Built"
+sidebarTitle: "Conventions"
+description: "Learn the structural and API conventions shared by all @figentra/* packages — from exports and TypeScript settings to error handling and versioning."
+---
+
+Every `@figentra/*` package is built to the same set of conventions so you can move between packages without re-learning how they are structured. Consistent conventions mean predictable import paths, reliable TypeScript types, and no surprises when you upgrade or add a new package to your monorepo.
+
+## Public API Pattern
+
+Every package exposes its complete public API through a single barrel file at `src/index.ts`. You will never need to reach into internal subdirectories — if something is part of the public API, it is exported from `index.ts`.
+
+Follow these rules when reading or extending a package:
+
+- All public types and implementations are exported from `src/index.ts`.
+- Types are exported alongside their corresponding implementations using `export type`.
+- No default exports are used anywhere — only named exports.
+
+<CodeGroup>
+```typescript src/index.ts
+export { MyClass } from './my-class';
+export type { MyClassOptions, MyClassResult } from './my-class.types';
+```
+</CodeGroup>
+
+<Warning>
+  Importing from internal paths (e.g. `@figentra/logger/src/transport`) is unsupported and may break without notice between patch releases. Always import from the package root.
+</Warning>
+
+## TypeScript Strict Mode
+
+All packages compile with `"strict": true` in their `tsconfig.json`. This configuration enforces:
+
+- **No implicit `any`** — every value must have a known type.
+- **Strict null checks** — `null` and `undefined` are not assignable to other types without an explicit union.
+- **No unchecked index access** — array and object index lookups return `T | undefined`.
+
+This means your own code also needs to handle `undefined` values correctly when consuming package APIs, which is the intended behavior.
+
+## ESM and CJS Dual Publishing
+
+All packages ship both an ESM build (`.mjs`) and a CommonJS build (`.js`) using [`tsup`](https://tsup.egoist.dev). The correct entry point is selected automatically based on your environment.
+
+You do not need to configure anything — import the package normally and your bundler or Node.js runtime will resolve the right format.
+
+<Tabs>
+  <Tab title="ESM">
+    ```typescript
+    import { createLogger } from '@figentra/logger';
+    ```
+  </Tab>
+  <Tab title="CommonJS">
+    ```typescript
+    const { createLogger } = require('@figentra/logger');
+    ```
+  </Tab>
+</Tabs>
+
+## Error Handling Convention
+
+Packages throw typed errors from `@figentra/error` rather than plain `Error` objects. This gives you structured error properties — such as an error code, HTTP status hint, and machine-readable context — that you can handle programmatically.
+
+```typescript
+import { FigentraError, isFigentraError } from '@figentra/error';
+
+try {
+  await container.resolve('MyService');
+} catch (err) {
+  if (isFigentraError(err)) {
+    console.error(err.code, err.message);
+  }
+}
+```
+
+Never catch a bare `Error` and assume it came from a Figentra package — always use the `isFigentraError` type guard.
+
+## Versioning Convention
+
+All `@figentra/*` packages are versioned together and released as a set. A single version number applies to the entire package family at any given release. This means:
+
+- A change to any one package increments the version for all packages.
+- You can safely use the same version string for every `@figentra/*` entry in your `package.json`.
+- Changelogs are published at the monorepo level, not per-package.
+
+Follow standard [semver](https://semver.org) semantics when interpreting version numbers: breaking changes increment the major version, new features increment the minor version, and bug fixes increment the patch version.
+
+## Peer Dependencies
+
+Packages declare shared runtime dependencies — most notably `typescript` itself — as `peerDependencies` rather than `devDependencies`. This prevents version conflicts when multiple packages depend on the same library.
+
+Install peer dependencies explicitly in your application:
+
+```bash npm
+npm install --save-peer typescript
+```
+
+Your package manager will warn you if a required peer dependency is missing or out of the supported range.
+
+## What to Expect from Every Package
+
+Every `@figentra/*` package ships with the same guarantees. Use this checklist when evaluating whether a package is ready to use in production:
+
+<Steps>
+  <Step title="Full TypeScript types included">
+    Type declarations are generated at build time and bundled with every release. No `@types/*` package is needed.
+  </Step>
+  <Step title="Named exports only">
+    There are no default exports. Tree-shakers and static analysis tools can reason precisely about what your code actually uses.
+  </Step>
+  <Step title="ESM + CJS dual build">
+    Both module formats are published. Your bundler, Jest, or Node.js runtime selects the correct one automatically.
+  </Step>
+  <Step title="Vitest-based test suite">
+    Every package is tested with [Vitest](https://vitest.dev). Test files live alongside source files and run in strict TypeScript mode.
+  </Step>
+  <Step title="No runtime side effects on import">
+    Importing a package does not register globals, monkey-patch built-ins, or start background processes. Effects happen only when you call a function.
+  </Step>
+</Steps>
+
+<Tip>
+  Import only the specific exports you use rather than importing entire namespaces. Even though all packages are side-effect free, explicit named imports give bundlers the best possible signal for dead-code elimination, keeping your final bundle as small as possible.
+</Tip>

@@ -1,0 +1,97 @@
+---
+title: "Incident Response Runbook for Production Issues"
+sidebarTitle: "Incident Response"
+description: "Learn how to detect, classify, escalate, and resolve production incidents in Figentra-based systems, including post-mortem guidance."
+---
+
+When something goes wrong in production, a clear and repeatable response process is the difference between a brief disruption and a prolonged outage. This runbook defines how to detect incidents, assign ownership, communicate with stakeholders, and drive issues to resolution — all within Figentra-based systems.
+
+## Severity Levels
+
+Classify every incident as early as possible. The severity level determines response time expectations and the level of escalation required.
+
+| Severity | Impact | Response Time |
+|---|---|---|
+| **P1 — Critical** | Service down, data loss | 15 minutes |
+| **P2 — High** | Major feature broken | 1 hour |
+| **P3 — Medium** | Degraded performance | 4 hours |
+| **P4 — Low** | Minor issue, workaround available | Next business day |
+
+## Detection
+
+Incidents are typically surfaced through one of three signals. Make sure all three are wired up in every Figentra service.
+
+- **Health check endpoints returning non-200** — integrate `@figentra/health` to expose a `/health` endpoint on every service. Your monitoring system should poll these continuously.
+- **Error rates spiking in logs** — use `@figentra/logger` for structured, queryable logs. Configure alerts on error-level log frequency thresholds.
+- **Alerting from monitoring systems** — connect your observability platform (Datadog, Grafana, PagerDuty, etc.) to page the on-call engineer when thresholds are breached.
+
+<Note>
+  Use `@figentra/health` to build standardised health check endpoints for all services. The package provides built-in checks for database connectivity, downstream dependencies, and memory usage — giving you a single, consistent signal across your entire fleet.
+</Note>
+
+## Response Steps
+
+<Steps>
+  <Step title="Acknowledge the incident and assign an incident commander">
+    Acknowledge the alert in your incident management tool (PagerDuty, OpsGenie, etc.) and immediately designate one person as the incident commander. The commander owns communication and drives the response — they are not necessarily the one doing the technical investigation.
+  </Step>
+
+  <Step title="Assess the severity">
+    Using the table above, assign a severity level. This unlocks the correct response-time expectation and escalation path. When in doubt, escalate up — it is easier to downgrade a P1 than to underprioritise a real outage.
+  </Step>
+
+  <Step title="Communicate status to stakeholders">
+    Post an initial status update in your incident channel and on your status page within the response-time window for the assigned severity. Include what you know, what you do not know, and when the next update will come.
+  </Step>
+
+  <Step title="Diagnose: check logs, health endpoints, and recent deployments">
+    Gather evidence before changing anything. Review structured logs via `@figentra/logger`, query the `/health` endpoint of affected services, and check whether any deployments or configuration changes preceded the incident.
+
+    ```bash
+    # Check the health endpoint of a running service
+    curl -sf https://your-service.example.com/health | jq .
+    ```
+  </Step>
+
+  <Step title="Mitigate: rollback, scale, or hotfix">
+    Apply the fastest safe mitigation — not necessarily a permanent fix. Options include rolling back the last deployment (see the [Deployment Runbook](/operations/deployment)), horizontally scaling to absorb load, or deploying a targeted hotfix through your standard CI pipeline.
+  </Step>
+
+  <Step title="Resolve and verify">
+    Confirm that the mitigation has restored normal behaviour. Check health endpoints, review error rates in your logging platform, and validate key user journeys before declaring the incident resolved.
+  </Step>
+
+  <Step title="Write a post-mortem within 48 hours">
+    Document what happened, why it happened, and what you will do to prevent it from happening again. Post-mortems are blameless — focus on systems and processes, not individuals.
+  </Step>
+</Steps>
+
+## Post-Mortem Template
+
+Use this template as a starting point for every post-mortem. File it in your team's shared knowledge base within 48 hours of resolution.
+
+```markdown
+# Incident Post-Mortem
+
+## Summary
+Brief description of what happened.
+
+## Timeline
+- HH:MM — Event description
+
+## Root Cause
+What caused the incident?
+
+## Resolution
+What fixed it?
+
+## Action Items
+- [ ] Prevent recurrence
+```
+
+<Accordion title="Tips for writing effective post-mortems">
+  - **Be specific about the timeline.** Vague entries like "engineers investigated" are less useful than "14:32 — @engineer queried the database and found 10k rows locked."
+  - **State the root cause as a system property**, not a human mistake. "The deployment pipeline did not run integration tests against the staging database" is more actionable than "an engineer forgot to test."
+  - **Make action items SMART** — Specific, Measurable, Assignable, Relevant, and Time-bound. Every action item should have a named owner and a due date.
+  - **Share post-mortems broadly.** Learning from incidents should be a company-wide activity, not siloed to the on-call team.
+</Accordion>

@@ -1,0 +1,65 @@
+---
+title: "Figentra Architecture: Monorepo Design Principles"
+sidebarTitle: "Overview"
+description: "Explore Figentra's architectural philosophy: a monorepo-first approach built on typed contracts, layered packages, and operational readiness from day one."
+---
+
+Figentra is built around a monorepo-first philosophy that treats your entire platform — applications, shared libraries, tooling, and configuration — as a single, coherent codebase. Rather than scattering packages across dozens of repositories, you keep everything in one place so that cross-cutting changes, dependency upgrades, and interface evolution are visible, testable, and deployable as a unit. Every architectural choice in Figentra flows from this premise: code that belongs together should live together.
+
+## Core Principles
+
+<CardGroup cols={2}>
+  <Card title="Single Source of Truth" icon="database">
+    All packages, applications, and tooling configurations live in one repository. You make changes once, run one CI pipeline, and ship consistent versions across every consumer.
+  </Card>
+  <Card title="Typed Contracts First" icon="file-code">
+    Shared interfaces and data shapes are defined in `@figentra/contracts` before any implementation is written. Types become the API boundary between packages, eliminating runtime surprises.
+  </Card>
+  <Card title="Layered Package Design" icon="layer-group">
+    Packages are organized in dependency layers — utilities and contracts at the base, services and health infrastructure above. Higher layers depend on lower ones, never the reverse.
+  </Card>
+  <Card title="Operational Readiness" icon="heart-pulse">
+    Health checks, structured error handling, and runbook hooks are built into the framework from the start. You don't bolt observability on later — it's part of the package layer contract.
+  </Card>
+</CardGroup>
+
+## Package Layer Diagram
+
+The following diagram shows how Figentra packages stack into dependency layers. Application services sit at the top and consume everything below them; the foundational packages at the base have no internal dependencies on higher layers.
+
+```text
+┌─────────────────────────────────────┐
+│          Application Services        │
+├─────────────────────────────────────┤
+│   @figentra/health  @figentra/error  │
+├─────────────────────────────────────┤
+│  @figentra/container @figentra/config│
+├─────────────────────────────────────┤
+│  @figentra/contracts @figentra/logger│
+└─────────────────────────────────────┘
+```
+
+Dependencies flow strictly downward. If you find yourself importing from a higher layer inside a lower-layer package, treat that as a signal to extract a new abstraction or restructure the dependency graph.
+
+## Technology Stack
+
+Figentra standardises on the following tools across every workspace:
+
+| Tool | Role | Why |
+|---|---|---|
+| **TypeScript 5+** | Primary language | Strict typing, decorators, and `satisfies` operator |
+| **pnpm workspaces** | Package management | Fast, content-addressable installs with strict hoisting |
+| **Turborepo** | Build orchestration | Incremental builds, task pipelines, and remote caching |
+| **Vitest** | Testing | Native ESM support, instant watch mode, Vite-compatible |
+| **Oxlint** | Linting | Rust-native speed, zero config, drop-in ESLint rules |
+
+<Tip>
+  You don't need to configure these tools from scratch. Figentra's `tooling/` packages export shared TypeScript, ESLint-compatible, and Vitest configurations that every workspace package can extend with a single line.
+</Tip>
+
+## Next Steps
+
+Dig deeper into how these principles translate into a concrete directory layout and the reasoning behind each technology choice:
+
+- [Monorepo Structure](/architecture/monorepo-structure) — recommended folder layout and workspace conventions
+- [Architecture Decisions](/architecture/decisions) — the ADRs that explain every major design choice

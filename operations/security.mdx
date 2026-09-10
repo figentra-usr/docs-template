@@ -1,0 +1,120 @@
+---
+title: "Security Incident Runbook and Hardening Guide"
+sidebarTitle: "Security"
+description: "Learn how to respond to security incidents and apply hardening best practices — dependency auditing, secrets management, and more — in Figentra projects."
+---
+
+Security in a Figentra monorepo spans dependency hygiene, secret management, type-safe code patterns, and a clear process for responding when something goes wrong. This guide covers both proactive hardening practices and the step-by-step response you should follow when a vulnerability or breach is confirmed.
+
+## Security Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Dependency Auditing" icon="magnifying-glass">
+    Run `pnpm audit` regularly — ideally on every pull request — to surface known CVEs in your dependency tree before they reach production.
+  </Card>
+  <Card title="Secret Management" icon="key">
+    Never commit secrets to source control. Store all credentials and API keys in environment variables, and use a dedicated secrets manager in production environments.
+  </Card>
+  <Card title="Type Safety" icon="shield-check">
+    Enable TypeScript strict mode across all packages. Strong typing eliminates entire classes of injection vulnerabilities and reduces the surface area for runtime surprises.
+  </Card>
+  <Card title="Dependency Pinning" icon="lock">
+    Use exact version specifiers (no `^` or `~`) in production packages. Pinned versions ensure that your dependency tree is deterministic and cannot silently introduce a compromised release.
+  </Card>
+</CardGroup>
+
+## Responding to a Security Incident
+
+<Steps>
+  <Step title="Confirm the vulnerability">
+    Gather the CVE number, the name and version range of the affected package, and the attack vector. Use the npm advisory database or the [GitHub Advisory Database](https://github.com/advisories) to retrieve official details.
+
+    ```bash
+    # Check the advisory for a specific package
+    pnpm audit --json | jq '.advisories'
+    ```
+  </Step>
+
+  <Step title="Assess impact">
+    Determine whether the vulnerability is exploitable in your specific deployment. A vulnerability in a server-side package that is only used in a CLI tool may carry far less risk than the same CVSS score applied to a public API.
+  </Step>
+
+  <Step title="Isolate affected services if actively exploited">
+    If you have evidence of active exploitation — unusual request patterns, unexpected data access, or confirmed breach indicators — isolate the affected service immediately. Take it out of the load balancer rotation, revoke compromised credentials, and preserve logs before taking any destructive action.
+  </Step>
+
+  <Step title="Apply the fix">
+    Choose the remediation path appropriate for the vulnerability:
+
+    - **Update the dependency** to a patched version.
+    - **Patch the code** if the vulnerability is in your own application logic.
+    - **Apply a workaround** (e.g., disable a vulnerable feature flag) if a patched version is not yet available.
+
+    ```bash
+    # Update a specific package to a safe version
+    pnpm update @affected/package@^safe-version
+    ```
+  </Step>
+
+  <Step title="Deploy the fix">
+    Run the fix through your standard deployment pipeline. Do not deploy directly from a local machine — use CI to ensure the fix is reviewed, tested, and auditable. Follow the [Deployment Runbook](/operations/deployment) for the full procedure.
+  </Step>
+
+  <Step title="Notify affected parties">
+    Follow your organisation's responsible disclosure policy. Notify internal stakeholders, downstream consumers of affected packages, and — where legally required — any affected users or regulators within the required timeframe.
+  </Step>
+
+  <Step title="Document in a security post-mortem">
+    Record what the vulnerability was, how it was discovered, how long it was present, what data or systems were at risk, and what changes you are making to prevent similar issues. File this in your team's knowledge base.
+  </Step>
+</Steps>
+
+## Dependency Vulnerability Scanning
+
+Integrate these commands into your local workflow and CI pipeline to catch vulnerable dependencies before they ship.
+
+```bash
+# Audit all workspace packages
+pnpm audit
+
+# Audit with severity threshold
+pnpm audit --audit-level moderate
+
+# Auto-fix where possible
+pnpm audit --fix
+```
+
+## Secrets Management
+
+Follow these practices to ensure credentials never leak from your Figentra project:
+
+- **Use `.env` files locally** for development secrets, and add `.env` to `.gitignore`. Never commit a `.env` file — not even one containing only "placeholder" values that could mislead future contributors.
+- **Use your platform's secrets manager in production** — AWS Secrets Manager, Google Secret Manager, HashiCorp Vault, Doppler, or equivalent. Inject secrets as environment variables at runtime rather than baking them into container images or config files.
+- **Validate all environment variables at startup** using `@figentra/config`. This ensures your application fails fast with a clear error message if a required secret is missing, rather than silently misbehaving at runtime.
+
+<CodeGroup>
+```typescript Validate env vars with @figentra/config
+import { createConfig } from "@figentra/config";
+
+export const config = createConfig({
+  DATABASE_URL: { type: "string", required: true },
+  API_SECRET: { type: "string", required: true },
+  LOG_LEVEL: { type: "string", default: "info" },
+});
+```
+
+```bash .gitignore entry
+# Local environment variables — never commit these
+.env
+.env.local
+.env.*.local
+```
+</CodeGroup>
+
+<Warning>
+  If a secret is ever accidentally exposed — pushed to a public repository, logged, or leaked via an API response — rotate all affected credentials immediately. Do not simply delete the commit or log entry and assume the secret is safe. Treat any exposed secret as fully compromised.
+</Warning>
+
+<Tip>
+  Add `pnpm audit --audit-level high` as a required step in your CI pipeline. This blocks pull requests that introduce dependencies with high or critical severity vulnerabilities, preventing known-bad packages from ever reaching your main branch.
+</Tip>

@@ -1,0 +1,95 @@
+---
+title: "Folder Structure Standards for Packages and Apps"
+sidebarTitle: "Folder Structure"
+description: "Understand the recommended directory layout for Figentra packages and application services, including src/, tests/, and barrel exports."
+---
+
+A predictable folder structure lets every contributor navigate any package or application in the monorepo without prior context. When `src/`, `tests/`, and configuration files always sit in the same relative positions, onboarding is faster and automated tooling — build scripts, test runners, and code generators — can make reliable assumptions about where things live.
+
+## Package Structure
+
+Every library package under `packages/` follows this layout:
+
+```text
+packages/my-package/
+├── src/
+│   ├── index.ts           # public barrel export
+│   ├── my-module.ts       # implementation
+│   └── my-module.types.ts # type definitions
+├── tests/
+│   ├── my-module.test.ts  # unit tests
+│   └── my-module.spec.ts  # integration tests
+├── package.json
+├── tsconfig.json
+└── vitest.config.ts
+```
+
+Keep the `src/` tree shallow. If a package grows large enough to warrant subdirectories, introduce a single level of domain grouping (e.g., `src/parsers/`, `src/validators/`) before reaching for deeper nesting.
+
+## Application Structure
+
+Applications under `apps/` follow a similar convention. The example below shows a typical API service:
+
+```text
+apps/api/
+├── src/
+│   ├── routes/
+│   │   └── user.routes.ts
+│   ├── services/
+│   │   └── user-service.ts
+│   ├── middleware/
+│   │   └── auth-middleware.ts
+│   └── index.ts            # application entry point
+├── tests/
+│   ├── routes/
+│   │   └── user.routes.spec.ts
+│   └── services/
+│       └── user-service.test.ts
+├── package.json
+└── tsconfig.json
+```
+
+Mirror the `src/` subdirectory structure inside `tests/` so the test for any given module is easy to locate.
+
+## Key Rules
+
+<Steps>
+  <Step title="Source code lives in src/">
+    All TypeScript implementation files belong under `src/`. Do not place runnable source files at the package root or inside `tests/`.
+  </Step>
+  <Step title="Tests live in tests/">
+    Keep all test files inside the top-level `tests/` directory. Do not colocate `.test.ts` or `.spec.ts` files next to their source counterparts inside `src/`.
+  </Step>
+  <Step title="Public API is exported from src/index.ts">
+    Consumers of your package import from the package name, which resolves to `src/index.ts`. Only export symbols that are part of the intentional public API; keep internal modules unexported.
+  </Step>
+  <Step title="No circular dependencies between packages">
+    Packages must form a directed acyclic graph. Use a tool such as `madge` or the `@figentra/lint` rules to detect and block circular imports in CI.
+  </Step>
+</Steps>
+
+## What Not To Do
+
+<Warning>
+**Avoid deep nesting and mixed concerns.**
+
+- Do not nest directories more than **3–4 levels** deep inside `src/`. Deep trees make imports verbose and refactoring expensive.
+- Do not mix test files and source files in the same directory. A file like `src/user-service.test.ts` violates the separation between `src/` and `tests/`.
+- Do not create `utils/` or `helpers/` catch-all directories at the top level. If a utility is broadly useful, promote it to a dedicated package under `packages/`.
+</Warning>
+
+## Avoiding Deep Relative Imports
+
+<Tip>
+Configure TypeScript path aliases in your `tsconfig.json` to avoid fragile relative import chains like `../../../../shared/errors`. Map `@my-package/*` to `./src/*` so imports stay readable regardless of where a file sits in the tree.
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    "paths": {
+      "@my-package/*": ["./src/*"]
+    }
+  }
+}
+```
+</Tip>

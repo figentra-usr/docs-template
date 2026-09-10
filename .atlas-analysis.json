@@ -1,13 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
+  "projectType": "framework",
+  "projectName": "Figentra",
+  "projectDescription": "A developer platform providing a curated monorepo framework with typed packages, coding standards, and architectural patterns for building scalable TypeScript applications.",
   "theme": "luma",
-  "name": "Figentra",
-  "colors": {
-    "primary": "#4F46E5",
-    "light": "#818CF8",
-    "dark": "#3730A3"
-  },
-  "favicon": "/favicon.svg",
+  "primaryColor": "#4F46E5",
+  "lightColor": "#818CF8",
+  "darkColor": "#3730A3",
   "navigation": {
     "tabs": [
       {
@@ -81,16 +79,28 @@
       }
     ]
   },
-  "navbar": {
-    "primary": {
-      "type": "button",
-      "label": "Get Started",
-      "href": "/quickstart"
-    }
-  },
-  "footer": {
-    "socials": {
-      "github": "https://github.com/figentra"
-    }
-  }
+  "keyFeatures": [
+    "Typed package system with contracts and interfaces",
+    "Health check package for service monitoring",
+    "Dependency injection container package",
+    "Standardized testing utilities and strategies",
+    "Centralized error handling package",
+    "File naming and folder structure conventions",
+    "Linting standards with Oxlint",
+    "Architecture Decision Records (ADRs)",
+    "Runbooks for deployment, incident response, and security",
+    "Monorepo-first development workflow"
+  ],
+  "publicApiSurface": [
+    "@figentra/contracts — shared TypeScript interfaces and type contracts",
+    "@figentra/health — health check utilities for services",
+    "@figentra/container — dependency injection container",
+    "@figentra/testing — test utilities and helpers",
+    "@figentra/error — standardized error classes and handling",
+    "@figentra/config — configuration management",
+    "@figentra/logger — structured logging utilities",
+    "@figentra/validation — input validation helpers",
+    "Monorepo CLI scripts via package.json",
+    "Oxlint configuration and rules"
+  ]
 }

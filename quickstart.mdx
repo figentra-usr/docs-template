@@ -1,47 +1,219 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with Figentra in Under 5 Minutes"
+sidebarTitle: "Quickstart"
+description: "Learn how to set up Figentra in your TypeScript monorepo, define your first contract, handle typed errors, and run your tests end to end."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+Figentra is a TypeScript monorepo framework that ships a suite of typed packages, enforced coding standards, and ready-made architectural patterns so your team spends less time on boilerplate and more time shipping features. This guide walks you through everything from installing the core packages to writing your first contract and throwing a typed error — all in under five minutes.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+
+  <Step title="Prerequisites">
+    Before you begin, make sure your development environment meets the following requirements:
+
+    | Requirement | Minimum version |
+    |---|---|
+    | Node.js | 18.x or later |
+    | pnpm | 8.x or later |
+    | TypeScript | 5.x or later |
+
+    Figentra is designed to live inside a **monorepo workspace**. It works with both [Turborepo](https://turbo.build/repo) and plain [pnpm workspaces](https://pnpm.io/workspaces). If you already have a workspace, skip to the next step. If you are starting from scratch, the next step covers the minimal setup.
+
+    <Tip>
+      Run `node -v` and `pnpm -v` in your terminal to verify the installed versions before continuing.
+    </Tip>
+  </Step>
+
+  <Step title="Create your workspace">
+    Initialize a new monorepo workspace and configure pnpm to recognise your packages directory.
 
     ```bash
-    npm install your-package
+    mkdir my-app && cd my-app
+    pnpm init
+    mkdir -p packages apps
+    ```
+
+    Create a `pnpm-workspace.yaml` file at the repository root to tell pnpm where your packages live:
+
+    ```yaml pnpm-workspace.yaml
+    packages:
+      - "packages/*"
+      - "apps/*"
+    ```
+
+    If you are using Turborepo, add a `turbo.json` at the root as well:
+
+    ```json turbo.json
+    {
+      "$schema": "https://turbo.build/schema.json",
+      "pipeline": {
+        "build": {
+          "dependsOn": ["^build"],
+          "outputs": ["dist/**"]
+        },
+        "test": {
+          "dependsOn": ["build"]
+        }
+      }
+    }
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+
+  <Step title="Add your first Figentra packages">
+    Install the two core Figentra packages you will use in this guide. Run the following command from the root of your monorepo:
 
     ```bash
-    your-cli init
+    pnpm add -w @figentra/contracts @figentra/error
+    ```
+
+    The `-w` flag installs the packages into the workspace root so every app and package in your monorepo can import them without repeating the install.
+
+    <Note>
+      Always pin all `@figentra/*` packages to the same version. Mixing versions across packages in the same workspace can lead to subtle type mismatches at compile time.
+    </Note>
+  </Step>
+
+  <Step title="Define a contract">
+    Contracts are the heart of Figentra — they are plain TypeScript interfaces that describe the shape of your data and service boundaries, enforced at the type level across your entire monorepo.
+
+    Create a new file in your `packages` directory:
+
+    ```typescript packages/core/src/contracts/user.contract.ts
+    import { defineContract, Contract } from "@figentra/contracts";
+
+    export interface UserContract extends Contract {
+      id: string;
+      email: string;
+      displayName: string;
+      createdAt: Date;
+      role: "admin" | "member" | "guest";
+    }
+
+    export const userContract = defineContract<UserContract>({
+      name: "UserContract",
+      version: "1.0.0",
+    });
+    ```
+
+    The `defineContract` helper attaches metadata — a name and a semver string — to your interface so Figentra can surface meaningful diagnostics when contract versions drift between services.
+
+    ```typescript packages/core/src/services/user.service.ts
+    import { UserContract } from "./contracts/user.contract";
+
+    export function createUser(
+      data: Omit<UserContract, "id" | "createdAt">
+    ): UserContract {
+      return {
+        id: crypto.randomUUID(),
+        createdAt: new Date(),
+        ...data,
+      };
+    }
     ```
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+  <Step title="Handle errors">
+    Figentra provides `@figentra/error` for typed, structured errors that carry a machine-readable code alongside the human-readable message — making error handling consistent across every service boundary.
+
+    ```typescript packages/core/src/services/user.service.ts
+    import { FigentraError, ErrorCode } from "@figentra/error";
+    import { UserContract } from "../contracts/user.contract";
+
+    export function getUserById(
+      users: UserContract[],
+      id: string
+    ): UserContract {
+      const user = users.find((u) => u.id === id);
+
+      if (!user) {
+        throw new FigentraError({
+          code: ErrorCode.NOT_FOUND,
+          message: `User with id "${id}" does not exist.`,
+          context: { id },
+        });
+      }
+
+      return user;
+    }
+    ```
+
+    `FigentraError` extends the native `Error` class, so it is fully compatible with any existing `try/catch` logic. The `code` field lets downstream callers branch on error type without parsing message strings.
+
+    <Tip>
+      Use `ErrorCode.VALIDATION` for input validation failures and `ErrorCode.UNAUTHORIZED` for access-control checks. See the Packages Overview for the full list of built-in codes.
+    </Tip>
+  </Step>
+
+  <Step title="Run your tests">
+    Figentra's typed packages are compatible with any test runner. If you have `@figentra/testing` installed, you get a pre-configured test environment with contract assertion helpers out of the box.
 
     ```bash
-    your-cli start
+    pnpm test
     ```
+
+    A minimal test for the service you just wrote might look like this:
+
+    ```typescript packages/core/src/services/user.service.test.ts
+    import { describe, it, expect } from "vitest";
+    import { FigentraError, ErrorCode } from "@figentra/error";
+    import { getUserById } from "./user.service";
+    import type { UserContract } from "../contracts/user.contract";
+
+    const mockUsers: UserContract[] = [
+      {
+        id: "user-001",
+        email: "ada@example.com",
+        displayName: "Ada Lovelace",
+        createdAt: new Date("2024-01-01"),
+        role: "admin",
+      },
+    ];
+
+    describe("getUserById", () => {
+      it("returns the user when found", () => {
+        const user = getUserById(mockUsers, "user-001");
+        expect(user.email).toBe("ada@example.com");
+      });
+
+      it("throws a typed NOT_FOUND error when the user is missing", () => {
+        expect(() => getUserById(mockUsers, "user-999")).toThrowError(
+          FigentraError
+        );
+
+        try {
+          getUserById(mockUsers, "user-999");
+        } catch (err) {
+          expect(err).toBeInstanceOf(FigentraError);
+          expect((err as FigentraError).code).toBe(ErrorCode.NOT_FOUND);
+        }
+      });
+    });
+    ```
+
+    <Warning>
+      If `pnpm test` exits without running any files, confirm that your test runner is configured to pick up `.test.ts` files. Check `vitest.config.ts` or your `jest.config.ts` for the `include` glob pattern.
+    </Warning>
   </Step>
+
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+---
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+You now have a working Figentra setup with a typed contract and structured error handling. Explore what to build next:
+
+<CardGroup cols={2}>
+  <Card
+    title="Architecture Overview"
+    icon="building"
+    href="/architecture/overview"
+  >
+    Understand how Figentra organises packages, enforces boundaries, and scales across large monorepos.
+  </Card>
+  <Card
+    title="Packages Overview"
+    icon="box"
+    href="/packages/overview"
+  >
+    Browse every first-party `@figentra/*` package, its API surface, and recommended usage patterns.
+  </Card>
+</CardGroup>

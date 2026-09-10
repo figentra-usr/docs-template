@@ -1,0 +1,161 @@
+---
+title: "@figentra/config: Environment Variable Validation"
+sidebarTitle: "Config"
+description: "Use @figentra/config to parse and validate environment variables with full TypeScript type safety at startup, before your server ever accepts a request."
+---
+
+Reading from `process.env` directly is unsafe — every value is a string or `undefined`, there are no type guarantees, and missing required variables surface as runtime errors deep inside your application logic. `@figentra/config` solves this by parsing and validating all environment variables at startup, converting them to their correct TypeScript types, and throwing immediately if anything is missing or malformed.
+
+## Installation
+
+<CodeGroup>
+
+```bash npm
+npm install @figentra/config
+```
+
+```bash pnpm
+pnpm add @figentra/config
+```
+
+```bash yarn
+yarn add @figentra/config
+```
+
+</CodeGroup>
+
+## Defining a Config Schema
+
+Call `defineConfig` once — typically in a dedicated `config.ts` file — and export the result. Every field declaration describes the expected type, whether the variable is required, and an optional default value.
+
+```typescript config.ts
+import { defineConfig, string, number, boolean } from '@figentra/config';
+
+export const config = defineConfig({
+  PORT: number({ default: 3000 }),
+  DATABASE_URL: string({ required: true }),
+  LOG_LEVEL: string({ default: 'info', enum: ['debug', 'info', 'warn', 'error'] }),
+  FEATURE_FLAG_X: boolean({ default: false }),
+});
+```
+
+## Using Your Config
+
+Import the exported `config` object anywhere in your application. Every property is fully typed — `config.PORT` is a `number`, `config.DATABASE_URL` is a `string`, and so on.
+
+```typescript
+import { config } from './config';
+
+const server = createServer({ port: config.PORT });
+const db = connectDatabase(config.DATABASE_URL);
+```
+
+## Validation at Startup
+
+`defineConfig` runs synchronously when the module is first imported. If any required variable is missing or any value cannot be coerced to the declared type, it throws a `ValidationError` before your server starts accepting requests.
+
+<Steps>
+  <Step title="Module is imported">
+    Node.js evaluates `config.ts` and calls `defineConfig`.
+  </Step>
+  <Step title="Environment is parsed">
+    Each key is read from `process.env`, coerced to its declared type, and checked against any constraints (enum values, min/max, URL format).
+  </Step>
+  <Step title="Errors are reported">
+    If validation fails, a `ValidationError` is thrown listing every missing or invalid variable. Fix them all at once rather than discovering them one by one.
+  </Step>
+  <Step title="Typed config is returned">
+    On success, `defineConfig` returns a plain object with the correct TypeScript types. No further parsing is needed anywhere in your codebase.
+  </Step>
+</Steps>
+
+## Field Types
+
+<CardGroup cols={2}>
+  <Card title="string(options)" icon="text">
+    Accepts string values. Supports an optional `default`, an `enum` array to restrict allowed values, and `required: true` to make the variable mandatory.
+  </Card>
+  <Card title="number(options)" icon="hash">
+    Coerces the string from `process.env` to a JavaScript `number`. Supports optional `min` and `max` bounds, a `default`, and `required: true`.
+  </Card>
+  <Card title="boolean(options)" icon="toggle-on">
+    Converts the strings `"true"` and `"false"` to their JavaScript boolean equivalents. Any other string value fails validation. Supports a `default`.
+  </Card>
+  <Card title="url(options)" icon="link">
+    Validates that the value is a well-formed URL using the WHATWG URL parser. Supports a `default` and `required: true`.
+  </Card>
+</CardGroup>
+
+## API Reference
+
+<ParamField path="defineConfig" type="function" required>
+  Parses `process.env` against the provided schema and returns a typed config object. Throws `ValidationError` on any failure.
+</ParamField>
+
+<ParamField path="string" type="FieldBuilder">
+  Declares a string field. Accepts `{ required?, default?, enum? }`.
+</ParamField>
+
+<ParamField path="number" type="FieldBuilder">
+  Declares a numeric field. Accepts `{ required?, default?, min?, max? }`.
+</ParamField>
+
+<ParamField path="boolean" type="FieldBuilder">
+  Declares a boolean field parsed from `"true"` / `"false"`. Accepts `{ required?, default? }`.
+</ParamField>
+
+<ParamField path="url" type="FieldBuilder">
+  Declares a URL field with format validation. Accepts `{ required?, default? }`.
+</ParamField>
+
+## Complete Example
+
+The following example shows a realistic service config that combines all field types and demonstrates error handling if you want to catch startup failures gracefully.
+
+```typescript config.ts
+import { defineConfig, string, number, boolean, url } from '@figentra/config';
+
+let config: ReturnType<typeof buildConfig>;
+
+function buildConfig() {
+  return defineConfig({
+    NODE_ENV: string({ default: 'development', enum: ['development', 'test', 'production'] }),
+    PORT: number({ default: 3000, min: 1024, max: 65535 }),
+    DATABASE_URL: url({ required: true }),
+    REDIS_URL: url({ required: true }),
+    LOG_LEVEL: string({ default: 'info', enum: ['debug', 'info', 'warn', 'error'] }),
+    JWT_SECRET: string({ required: true }),
+    MAINTENANCE_MODE: boolean({ default: false }),
+  });
+}
+
+try {
+  config = buildConfig();
+} catch (err) {
+  console.error('Configuration error — check your environment variables:', err.message);
+  process.exit(1);
+}
+
+export { config };
+```
+
+```typescript server.ts
+import { config } from './config';
+import { createServer } from './server';
+
+// All values are typed and guaranteed valid from this point forward
+createServer({
+  port: config.PORT,
+  env: config.NODE_ENV,
+}).listen(() => {
+  console.log(`Server running on port ${config.PORT} [${config.NODE_ENV}]`);
+});
+```
+
+<Warning>
+  Never log your full config object. It is likely to contain secrets such as `JWT_SECRET`, `DATABASE_URL` credentials, or API keys. Log only the specific non-sensitive fields you need for diagnostics.
+</Warning>
+
+<Tip>
+  Commit a `.env.example` file to your repository that lists every key your application requires, with placeholder values instead of real secrets. New contributors can copy it to `.env` and know exactly which variables to fill in before running the service.
+</Tip>

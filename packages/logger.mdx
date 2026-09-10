@@ -1,0 +1,206 @@
+---
+title: "@figentra/logger: Structured JSON Logging for Services"
+sidebarTitle: "Logger"
+description: "Use @figentra/logger to emit structured JSON logs with consistent context fields across all Figentra services, ready for ingestion by any log aggregator."
+---
+
+Plain text logs are difficult to search, filter, and aggregate at scale. When every log line is a JSON object with consistent fields — level, timestamp, service name, and context — your log aggregator can index them, your dashboards can chart them, and your on-call engineer can query them in seconds. `@figentra/logger` gives every Figentra service the same structured JSON output format so that logs behave predictably no matter which service emits them.
+
+## Installation
+
+<CodeGroup>
+
+```bash npm
+npm install @figentra/logger
+```
+
+```bash pnpm
+pnpm add @figentra/logger
+```
+
+```bash yarn
+yarn add @figentra/logger
+```
+
+</CodeGroup>
+
+## Creating a Logger
+
+Call `createLogger` once at module scope and pass at minimum a `service` name. The returned logger instance is safe to share across the entire service — it is stateless and not bound to any single request.
+
+```typescript
+import { createLogger } from '@figentra/logger';
+
+const logger = createLogger({ service: 'user-service', level: 'info' });
+```
+
+## Logging Methods
+
+Each method corresponds to a severity level and accepts an optional `context` object whose keys are merged into the emitted JSON.
+
+### `logger.debug`
+
+Use `debug` for verbose information that helps trace execution flow during development. Debug logs are suppressed in production unless the log level is explicitly set to `debug`.
+
+```typescript
+logger.debug('Cache lookup started', { key: 'user:abc123', ttl: 300 });
+```
+
+### `logger.info`
+
+Use `info` for normal operational events — requests received, records created, background jobs completed. This is the default level for production services.
+
+```typescript
+logger.info('User created', { userId: 'abc123', email: 'user@example.com' });
+```
+
+### `logger.warn`
+
+Use `warn` for unexpected situations that the service recovered from but that might indicate a deeper problem — a slow database query, a deprecated API call, or a cache miss rate spike.
+
+```typescript
+logger.warn('Database query exceeded threshold', { queryMs: 1850, threshold: 1000 });
+```
+
+### `logger.error`
+
+Use `error` for failures that require attention — unhandled exceptions, failed external calls, or data integrity issues. Pass the original `Error` object as the second argument so the stack trace is captured in the log output.
+
+```typescript
+try {
+  await sendEmail(user.email);
+} catch (err) {
+  logger.error('Failed to send welcome email', err, { userId: user.id });
+}
+```
+
+## Log Output Format
+
+Every log line is a single-line JSON object written to `stdout`. The following fields are always present:
+
+```json
+{
+  "level": "info",
+  "message": "User created",
+  "service": "user-service",
+  "timestamp": "2024-01-15T10:00:00Z",
+  "context": { "userId": "abc123" }
+}
+```
+
+Error logs additionally include `error.message` and `error.stack` when an `Error` object is provided:
+
+```json
+{
+  "level": "error",
+  "message": "Failed to send welcome email",
+  "service": "user-service",
+  "timestamp": "2024-01-15T10:00:01Z",
+  "context": { "userId": "abc123" },
+  "error": {
+    "message": "SMTP connection refused",
+    "stack": "Error: SMTP connection refused\n    at sendEmail ..."
+  }
+}
+```
+
+## Child Loggers
+
+Create a child logger to automatically attach persistent context fields — such as a request ID or authenticated user ID — to every log line emitted within that scope. Child loggers share the parent's level and transport configuration.
+
+```typescript
+const requestLogger = logger.child({ requestId: req.id, userId: user.id });
+requestLogger.info('Processing request');
+requestLogger.info('Permission check passed', { resource: 'invoice', action: 'read' });
+```
+
+Both lines above will include `requestId` and `userId` without you passing them manually each time.
+
+## Log Levels
+
+| Level   | Numeric Value | When to Use                                                      |
+|---------|---------------|------------------------------------------------------------------|
+| `debug` | 10            | Detailed execution tracing, only useful while actively debugging |
+| `info`  | 20            | Normal events that confirm the service is working as expected    |
+| `warn`  | 30            | Unexpected but recoverable situations that may need investigation|
+| `error` | 40            | Failures that require immediate attention or produce user impact |
+
+Only messages at or above the configured level are emitted. Setting the level to `warn`, for example, suppresses all `debug` and `info` output.
+
+## API Reference
+
+<ParamField path="createLogger" type="function" required>
+  Creates a new logger instance. Accepts `{ service: string, level?: LogLevel }` and returns a `Logger` object.
+</ParamField>
+
+<ParamField path="logger.child" type="method">
+  Returns a new `Logger` that inherits the parent's configuration and merges the provided context object into every log line it emits.
+</ParamField>
+
+<ParamField path="logger.debug" type="method">
+  Emits a log line at level `debug`. Signature: `(message: string, context?: Record<string, unknown>) => void`.
+</ParamField>
+
+<ParamField path="logger.info" type="method">
+  Emits a log line at level `info`. Signature: `(message: string, context?: Record<string, unknown>) => void`.
+</ParamField>
+
+<ParamField path="logger.warn" type="method">
+  Emits a log line at level `warn`. Signature: `(message: string, context?: Record<string, unknown>) => void`.
+</ParamField>
+
+<ParamField path="logger.error" type="method">
+  Emits a log line at level `error`. Signature: `(message: string, error?: Error, context?: Record<string, unknown>) => void`.
+</ParamField>
+
+## Complete Example
+
+The following example shows a typical Express request handler that creates a child logger per request, logs at multiple levels throughout the lifecycle, and captures errors with full context.
+
+```typescript
+import { createLogger } from '@figentra/logger';
+import type { Request, Response, NextFunction } from 'express';
+
+const logger = createLogger({ service: 'order-service', level: 'info' });
+
+export async function createOrderHandler(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  const requestLogger = logger.child({
+    requestId: req.headers['x-request-id'],
+    userId: req.user?.id,
+    path: req.path,
+  });
+
+  requestLogger.info('Create order request received');
+
+  try {
+    requestLogger.debug('Validating order payload', { body: req.body });
+
+    const order = await orderService.create(req.body, req.user);
+
+    requestLogger.info('Order created successfully', {
+      orderId: order.id,
+      total: order.total,
+      itemCount: order.items.length,
+    });
+
+    res.status(201).json({ order });
+  } catch (err) {
+    requestLogger.error('Order creation failed', err as Error, {
+      payload: req.body,
+    });
+    next(err);
+  }
+}
+```
+
+<Tip>
+  Create a child logger at the start of every request handler and pass it down to service and repository calls rather than using the root logger directly. Every log line will automatically carry the request ID, making it trivial to reconstruct the full trace for any single request in your log aggregator.
+</Tip>
+
+<Note>
+  If `@figentra/config` is present in your project and exports a `LOG_LEVEL` variable, `@figentra/logger` will use that value as the default level when no explicit `level` option is passed to `createLogger`. This means you can control logging verbosity through your standard environment variable config without touching any code.
+</Note>

@@ -1,0 +1,137 @@
+---
+title: "Testing Standards: Unit, Integration, and E2E Tests"
+sidebarTitle: "Testing"
+description: "Learn the test strategy, naming conventions, Vitest configuration, and coverage requirements used across all Figentra packages and applications."
+---
+
+Figentra follows a test pyramid strategy: a broad base of fast unit tests, a mid-layer of integration tests that verify service boundaries, and a thin layer of end-to-end tests that validate complete user flows. This balance keeps the suite fast during development while giving you confidence that the system works as a whole. Every package you ship must include tests; coverage gates enforce this automatically in CI.
+
+## Test Types
+
+<CardGroup cols={3}>
+  <Card title="Unit Tests" icon="flask">
+    Test a single function or class in complete isolation. Mock all external dependencies. Use the `.test.ts` suffix. These run on every save and should complete in milliseconds.
+  </Card>
+  <Card title="Integration Tests" icon="arrows-split-up-and-left">
+    Test multiple modules together or verify a service boundary such as a database query or HTTP handler. Use the `.spec.ts` suffix. These may spin up real infrastructure using containers.
+  </Card>
+  <Card title="E2E Tests" icon="browsers">
+    Test full user flows from the outside — HTTP request to response, or browser interaction to assertion. Live in `tests/e2e/`. Run in CI against a staging environment.
+  </Card>
+</CardGroup>
+
+## Test Framework
+
+All Figentra projects use **Vitest** as the test runner. Vitest provides native TypeScript support, a Jest-compatible API, and first-class support for ESM — no transpilation step required.
+
+Add a `vitest.config.ts` at the root of each package:
+
+```typescript vitest.config.ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'node',
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+    },
+  },
+});
+```
+
+Setting `globals: true` makes `describe`, `it`, and `expect` available without explicit imports — matching the Jest experience most contributors already know.
+
+## Writing a Unit Test
+
+The example below tests a `UserService` class. Notice that the test file lives in `tests/` and imports from `../src/`:
+
+```typescript user-service.test.ts
+import { describe, it, expect } from 'vitest';
+import { UserService } from '../src/user-service';
+
+describe('UserService', () => {
+  it('returns a user by id', async () => {
+    const service = new UserService();
+    const user = await service.findById('123');
+    expect(user.id).toBe('123');
+  });
+
+  it('throws when the user is not found', async () => {
+    const service = new UserService();
+    await expect(service.findById('nonexistent')).rejects.toThrow('User not found');
+  });
+});
+```
+
+Follow the **Arrange / Act / Assert** pattern inside every `it` block. Keep each test focused on a single behaviour so failures are easy to diagnose.
+
+## Coverage Requirements
+
+<Steps>
+  <Step title="80%+ line coverage on all packages">
+    Every published package must reach at least 80% line coverage. The CI pipeline enforces this threshold and blocks merges that fall below it.
+  </Step>
+  <Step title="100% coverage on critical paths">
+    Error handling code, authentication logic, and data validation must have 100% line and branch coverage. Mark these files explicitly in your `vitest.config.ts` using the `include` option under `coverage`.
+  </Step>
+  <Step title="No untested exports">
+    Every symbol exported from `src/index.ts` must have at least one direct test. Use the coverage report to identify untested exports before opening a pull request.
+  </Step>
+</Steps>
+
+## Running Tests
+
+<CodeGroup>
+```bash pnpm
+# Run the full test suite once
+pnpm test
+
+# Run with coverage report
+pnpm test:coverage
+
+# Run in watch mode during development
+pnpm test:watch
+```
+
+```bash npm
+# Run the full test suite once
+npm test
+
+# Run with coverage report
+npm run test:coverage
+
+# Run in watch mode during development
+npm run test:watch
+```
+
+```bash yarn
+# Run the full test suite once
+yarn test
+
+# Run with coverage report
+yarn test:coverage
+
+# Run in watch mode during development
+yarn test:watch
+```
+</CodeGroup>
+
+## Shared Test Utilities
+
+<Tip>
+Use the `@figentra/testing` package for common setup and teardown helpers — database seed/reset utilities, mock factory functions, and custom Vitest matchers. Importing from `@figentra/testing` keeps boilerplate out of individual test files and ensures consistent behavior across the monorepo.
+
+```typescript user-service.spec.ts
+import { createTestDatabase, teardownTestDatabase } from '@figentra/testing';
+
+beforeAll(async () => {
+  await createTestDatabase();
+});
+
+afterAll(async () => {
+  await teardownTestDatabase();
+});
+```
+</Tip>
